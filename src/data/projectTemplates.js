@@ -1,3 +1,18 @@
+export const DOMAINS = [
+  { id: 'all', name: 'All Engineering Domains', icon: 'Sparkles' },
+  { id: 'ai', name: 'AI & Machine Learning', icon: 'Brain' },
+  { id: 'web', name: 'Web & Fullstack', icon: 'Globe' },
+  { id: 'mobile', name: 'Mobile Apps', icon: 'Smartphone' },
+  { id: 'security', name: 'Cybersecurity', icon: 'Shield' },
+  { id: 'cloud', name: 'Cloud & DevOps', icon: 'Cloud' },
+  { id: 'iot', name: 'IoT & Embedded', icon: 'Cpu' },
+  { id: 'blockchain', name: 'Blockchain', icon: 'Link' }
+];
+
+export const POPULAR_TECH = [
+  'React', 'Python', 'Node.js', 'FastAPI', 'TensorFlow', 'Flutter', 'Docker', 'PostgreSQL', 'Solidity', 'AWS'
+];
+
 export const INTERESTS = [
   "Web Development", "Mobile Apps", "AI & Machine Learning", "Data Science",
   "IoT & Embedded Systems", "Cybersecurity", "Blockchain", "Cloud & DevOps",

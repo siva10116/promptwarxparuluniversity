@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from "react";
-import {
-  PenTool, Bookmark, BookmarkCheck, Loader2, Send, ChevronRight,
-  ChevronLeft, X, Plus, ListChecks, ArrowRight, RefreshCw, Sparkles,
-  Download, FileText, Key, Network, Code2, HelpCircle, Check, BookOpen
-} from "lucide-react";
-import { INTERESTS, SKILLS, DIFFICULTIES, TEAM_SIZES, DEFAULT_IDEAS } from "./data/projectTemplates";
-import { generateProjectIdeas, askMentorQuestion } from "./services/aiGeneratorService";
-import { exportProjectPDF, exportProjectMarkdown } from "./services/pdfExporter";
+import Navbar from "./components/Navbar";
+import VivaSimulator from "./components/VivaSimulator";
+import IdeaComparer from "./components/IdeaComparer";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeBoilerplate from "./components/CodeBoilerplate";
 import ApiKeyModal from "./components/ApiKeyModal";
+import { INTERESTS, SKILLS, DIFFICULTIES, TEAM_SIZES, DEFAULT_IDEAS } from "./data/projectTemplates";
+import { generateProjectIdeas, askMentorQuestion } from "./services/aiGeneratorService";
+import { exportProjectPDF, exportProjectMarkdown } from "./services/pdfExporter";
+import {
+  Flame, PenTool, Bookmark, BookmarkCheck, Loader2, Send, ChevronRight,
+  ChevronLeft, X, Plus, ListChecks, ArrowRight, RefreshCw, Sparkles,
+  Download, FileText, Key, Network, Code2, HelpCircle, Check, BookOpen, GraduationCap, Columns
+} from "lucide-react";
 
 const DURATIONS = ["6–8 weeks", "3–4 months", "6+ months"];
 
@@ -101,7 +104,7 @@ function IdeaSheet({ idea, index, total, saved, onToggleSave, onOpen, onExportPD
 
       <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#3E6E9E]/20">
         <button type="button" className="bp-open-link" onClick={onOpen}>
-          Explore Full Blueprint <ChevronRight size={16} />
+          Explore Blueprint <ChevronRight size={16} />
         </button>
       </div>
     </div>
@@ -110,7 +113,7 @@ function IdeaSheet({ idea, index, total, saved, onToggleSave, onOpen, onExportPD
 
 function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoading, onExportPDF, onExportMD }) {
   const [question, setQuestion] = useState("");
-  const [activeTab, setActiveTab] = useState("roadmap"); // 'roadmap' | 'architecture' | 'code' | 'viva'
+  const [activeTab, setActiveTab] = useState("roadmap");
 
   function submit(e) {
     e.preventDefault();
@@ -169,7 +172,7 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
 
       <p className="bp-detail-problem">{idea.problem || idea.problemStatement}</p>
 
-      {/* Blueprint Sub-Navigation Tabs */}
+      {/* Navigation Tabs */}
       <div className="flex items-center space-x-2 border-b border-[#3E6E9E]/40 mb-6 pb-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab('roadmap')}
@@ -226,7 +229,7 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
         )}
       </div>
 
-      {/* Tab 1: Roadmap & Features */}
+      {/* Tab 1: Roadmap */}
       {activeTab === 'roadmap' && (
         <div className="bp-detail-grid">
           <div className="bp-detail-col">
@@ -280,25 +283,25 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
         </div>
       )}
 
-      {/* Tab 2: Architecture Diagram */}
+      {/* Tab 2: Architecture */}
       {activeTab === 'architecture' && idea.architectureDiagram && (
         <div className="mb-10">
           <ArchitectureDiagram chartCode={idea.architectureDiagram} />
         </div>
       )}
 
-      {/* Tab 3: Starter Code Boilerplate */}
+      {/* Tab 3: Starter Code */}
       {activeTab === 'code' && idea.codeBoilerplate && (
         <div className="mb-10">
           <CodeBoilerplate boilerplate={idea.codeBoilerplate} />
         </div>
       )}
 
-      {/* Tab 4: Viva Defense Prep */}
+      {/* Tab 4: Viva Prep */}
       {activeTab === 'viva' && idea.vivaQuestions && (
         <div className="mb-10 space-y-4">
           <div className="p-3 bg-[#FF6A3D]/10 border border-[#FF6A3D]/30 text-[#FF6A3D] text-xs font-mono">
-            <strong>🎓 Professor Defense Tip:</strong> Prepare answers to these anticipated examiner questions before your demo day.
+            <strong>🎓 Professor Defense Tip:</strong> Review these examiner questions before presentation day.
           </div>
           {idea.vivaQuestions.map((v, i) => (
             <div key={i} className="p-4 bg-[#12324F] border border-[#3E6E9E] rounded text-xs space-y-2">
@@ -312,7 +315,7 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
         </div>
       )}
 
-      {/* Interactive AI Mentor Chat */}
+      {/* AI Mentor Chat */}
       <div className="bp-chat">
         <h4 className="bp-section-heading flex items-center justify-between">
           <span>Ask about this project</span>
@@ -352,7 +355,8 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
   );
 }
 
-export default function DraftingTable() {
+export default function IdeaForgeApp() {
+  const [activeTab, setActiveTab] = useState("generator");
   const [screen, setScreen] = useState("home");
   const [previousScreen, setPreviousScreen] = useState("results");
 
@@ -377,13 +381,12 @@ export default function DraftingTable() {
   const [apiKey, setApiKey] = useState("");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
-  // Sync saved ideas and API key with local storage
   useEffect(() => {
     try {
-      const storedSaved = localStorage.getItem("drafting_saved_ideas");
+      const storedSaved = localStorage.getItem("ideaforge_saved_ideas");
       if (storedSaved) setSavedIdeas(JSON.parse(storedSaved));
 
-      const storedKey = localStorage.getItem("drafting_gemini_key");
+      const storedKey = localStorage.getItem("ideaforge_gemini_key");
       if (storedKey) setApiKey(storedKey);
     } catch (e) {
       console.warn("Storage sync error:", e);
@@ -393,7 +396,7 @@ export default function DraftingTable() {
   const saveSavedIdeasToStorage = (updated) => {
     setSavedIdeas(updated);
     try {
-      localStorage.setItem("drafting_saved_ideas", JSON.stringify(updated));
+      localStorage.setItem("ideaforge_saved_ideas", JSON.stringify(updated));
     } catch (e) {
       console.warn("Storage write error:", e);
     }
@@ -402,7 +405,7 @@ export default function DraftingTable() {
   const handleSaveApiKey = (key) => {
     setApiKey(key);
     try {
-      localStorage.setItem("drafting_gemini_key", key);
+      localStorage.setItem("ideaforge_gemini_key", key);
     } catch (e) {
       console.warn("Error saving API key:", e);
     }
@@ -513,10 +516,10 @@ export default function DraftingTable() {
     <div className="bp-app">
       <style>{`
         .bp-app {
-          --bg: #0F2A45;
-          --bg-panel: #12324F;
-          --bg-panel-2: #16395C;
-          --line: #3E6E9E;
+          --bg: #0b1329;
+          --bg-panel: #121c38;
+          --bg-panel-2: #1b284d;
+          --line: #2a3c6b;
           --line-soft: rgba(158,199,230,0.16);
           --ink: #EAF3FA;
           --ink-dim: #8FB4D1;
@@ -546,7 +549,7 @@ export default function DraftingTable() {
           position: sticky; top: 0; z-index: 20;
           display: flex; align-items: center; justify-content: space-between;
           padding: 18px 24px; border-bottom: 1px solid var(--line-soft);
-          background: rgba(15,42,69,0.92); backdrop-filter: blur(8px);
+          background: rgba(11,19,41,0.92); backdrop-filter: blur(8px);
         }
         .bp-brand { display: flex; align-items: center; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 15px; cursor: pointer; }
         .bp-brand-sub { color: var(--ink-dim); font-size: 12px; font-family: 'IBM Plex Mono', monospace; margin-left: 10px; border-left: 1px solid var(--line-soft); padding-left: 10px; }
@@ -734,167 +737,180 @@ export default function DraftingTable() {
 
       <div className="bp-grid-bg" />
 
-      {/* Production Navigation Header */}
-      <header className="bp-header">
-        <div className="bp-brand" onClick={() => setScreen("home")}>
-          <PenTool size={18} className="text-[#FF6A3D]" />
-          Drafting Table
-          <span className="bp-brand-sub">final-year project mentor</span>
-        </div>
+      {/* Production Header */}
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          if (tab === 'generator') setScreen('results');
+          if (tab === 'saved') setScreen('saved');
+        }}
+        savedCount={savedIdeas.length}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+      />
 
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            className="bp-savedbtn"
-            onClick={() => setIsApiKeyModalOpen(true)}
-            title="Configure Gemini API Key"
-          >
-            <Key size={14} className="text-amber-400" />
-            <span className="hidden sm:inline">{apiKey ? 'Gemini Active' : 'API Key'}</span>
-          </button>
+      <div className="bp-shell pt-6">
+        
+        {/* VIEW 1: Generator & Main Screens */}
+        {activeTab === 'generator' && (
+          <>
+            {screen === "home" && (
+              <section className="bp-hero">
+                <div>
+                  <h1 className="bp-hero-title">Turn what you know into what you'll build.</h1>
+                  <p className="bp-hero-sub">
+                    Tell it your interests and skills. IdeaForge AI drafts three capstone project blueprints,
+                    each complete with architecture diagrams, a build roadmap, starter code, and viva prep Q&A.
+                  </p>
+                  <button type="button" className="bp-cta" onClick={() => setScreen("form")}>
+                    Start drafting <ArrowRight size={17} />
+                  </button>
+                </div>
+                <div className="bp-hero-sketch">
+                  <div className="bp-hero-sketch-label">Sheet 01 / 03 — preview</div>
+                  <div className="bp-hero-sketch-line w80" />
+                  <div className="bp-hero-sketch-line w60" />
+                  <div className="bp-hero-sketch-line w40" />
+                  <div className="bp-hero-sketch-line w60" style={{ marginTop: 18 }} />
+                  <div className="bp-hero-sketch-line w80" />
+                </div>
+              </section>
+            )}
 
-          <button
-            type="button"
-            className="bp-savedbtn"
-            disabled={savedIdeas.length === 0 && screen !== "saved"}
-            onClick={() => setScreen(screen === "saved" ? (ideas.length ? "results" : "home") : "saved")}
-          >
-            <Bookmark size={15} /> Saved ({savedIdeas.length})
-          </button>
-        </div>
-      </header>
+            {screen === "form" && (
+              <section className="bp-form">
+                <h2 className="bp-section-title">Set up your sheet</h2>
+                <p className="bp-section-desc">Pick as many as apply — the more specific, the sharper the ideas.</p>
 
-      <div className="bp-shell">
-        {screen === "home" && (
-          <section className="bp-hero">
-            <div>
-              <h1 className="bp-hero-title">Turn what you know into what you'll build.</h1>
-              <p className="bp-hero-sub">
-                Tell it your interests and skills. It drafts three project ideas sized to your timeline,
-                each with architecture diagrams, a build roadmap, starter code, and viva prep Q&A.
-              </p>
-              <button type="button" className="bp-cta" onClick={() => setScreen("form")}>
-                Start drafting <ArrowRight size={17} />
-              </button>
-            </div>
-            <div className="bp-hero-sketch">
-              <div className="bp-hero-sketch-label">Sheet 01 / 03 — preview</div>
-              <div className="bp-hero-sketch-line w80" />
-              <div className="bp-hero-sketch-line w60" />
-              <div className="bp-hero-sketch-line w40" />
-              <div className="bp-hero-sketch-line w60" style={{ marginTop: 18 }} />
-              <div className="bp-hero-sketch-line w80" />
-            </div>
-          </section>
-        )}
+                <div className="bp-field-group">
+                  <span className="bp-label">Interests</span>
+                  <div className="bp-chiprow">
+                    {INTERESTS.map((i) => (
+                      <Chip key={i} label={i} active={selectedInterests.includes(i)} onClick={() => toggleInterest(i)} />
+                    ))}
+                  </div>
+                </div>
 
-        {screen === "form" && (
-          <section className="bp-form">
-            <h2 className="bp-section-title">Set up your sheet</h2>
-            <p className="bp-section-desc">Pick as many as apply — the more specific, the sharper the ideas.</p>
-
-            <div className="bp-field-group">
-              <span className="bp-label">Interests</span>
-              <div className="bp-chiprow">
-                {INTERESTS.map((i) => (
-                  <Chip key={i} label={i} active={selectedInterests.includes(i)} onClick={() => toggleInterest(i)} />
-                ))}
-              </div>
-            </div>
-
-            <div className="bp-field-group">
-              <span className="bp-label">Skills</span>
-              <div className="bp-chiprow">
-                {SKILLS.map((s) => (
-                  <Chip key={s} label={s} active={selectedSkills.includes(s)} onClick={() => toggleSkill(s)} />
-                ))}
-                {customSkills.map((s) => (
-                  <span className="bp-chip bp-chip-active bp-custom-chip" key={s}>
-                    {s}
-                    <button type="button" onClick={() => removeCustomSkill(s)} aria-label={`Remove ${s}`}>
-                      <X size={13} />
+                <div className="bp-field-group">
+                  <span className="bp-label">Skills</span>
+                  <div className="bp-chiprow">
+                    {SKILLS.map((s) => (
+                      <Chip key={s} label={s} active={selectedSkills.includes(s)} onClick={() => toggleSkill(s)} />
+                    ))}
+                    {customSkills.map((s) => (
+                      <span className="bp-chip bp-chip-active bp-custom-chip" key={s}>
+                        {s}
+                        <button type="button" onClick={() => removeCustomSkill(s)} aria-label={`Remove ${s}`}>
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="bp-custom-row">
+                    <input
+                      className="bp-custom-input"
+                      placeholder="Add another skill…"
+                      value={customSkillInput}
+                      onChange={(e) => setCustomSkillInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomSkill())}
+                    />
+                    <button type="button" className="bp-custom-add" onClick={addCustomSkill}>
+                      <Plus size={14} /> Add
                     </button>
-                  </span>
-                ))}
-              </div>
-              <div className="bp-custom-row">
-                <input
-                  className="bp-custom-input"
-                  placeholder="Add another skill…"
-                  value={customSkillInput}
-                  onChange={(e) => setCustomSkillInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomSkill())}
-                />
-                <button type="button" className="bp-custom-add" onClick={addCustomSkill}>
-                  <Plus size={14} /> Add
-                </button>
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            <div className="bp-field-group bp-constraints">
-              <div>
-                <span className="bp-label">Difficulty</span>
-                <Segment options={DIFFICULTIES} value={difficulty} onChange={setDifficulty} />
-              </div>
-              <div>
-                <span className="bp-label">Timeline</span>
-                <Segment options={DURATIONS} value={duration} onChange={setDuration} />
-              </div>
-              <div>
-                <span className="bp-label">Team size</span>
-                <Segment options={TEAM_SIZES} value={teamSize} onChange={setTeamSize} />
-              </div>
-            </div>
+                <div className="bp-field-group bp-constraints">
+                  <div>
+                    <span className="bp-label">Difficulty</span>
+                    <Segment options={DIFFICULTIES} value={difficulty} onChange={setDifficulty} />
+                  </div>
+                  <div>
+                    <span className="bp-label">Timeline</span>
+                    <Segment options={DURATIONS} value={duration} onChange={setDuration} />
+                  </div>
+                  <div>
+                    <span className="bp-label">Team size</span>
+                    <Segment options={TEAM_SIZES} value={teamSize} onChange={setTeamSize} />
+                  </div>
+                </div>
 
-            <div className="bp-generate-row">
-              <button type="button" className="bp-generate-btn" disabled={!canGenerate} onClick={generateIdeas}>
-                <PenTool size={16} /> Generate 3 ideas
-              </button>
-              {!canGenerate && <span className="bp-hint">Pick at least one interest or skill first.</span>}
-            </div>
+                <div className="bp-generate-row">
+                  <button type="button" className="bp-generate-btn" disabled={!canGenerate} onClick={generateIdeas}>
+                    <PenTool size={16} /> Generate 3 ideas
+                  </button>
+                  {!canGenerate && <span className="bp-hint">Pick at least one interest or skill first.</span>}
+                </div>
 
-            {error && <div className="bp-error">{error}</div>}
-          </section>
+                {error && <div className="bp-error">{error}</div>}
+              </section>
+            )}
+
+            {screen === "loading" && (
+              <div className="bp-loading">
+                <svg className="bp-draw-rect" viewBox="0 0 160 100">
+                  <rect x="4" y="4" width="152" height="92" />
+                </svg>
+                <span className="bp-loading-text">Drafting your options…</span>
+              </div>
+            )}
+
+            {screen === "results" && (
+              <section>
+                <div className="bp-results-top">
+                  <div>
+                    <h2 className="bp-section-title">Three sheets, drafted for you</h2>
+                    <p className="bp-section-desc" style={{ marginBottom: 0 }}>Open one to see the full build plan, architecture, code, and viva questions.</p>
+                  </div>
+                  <button type="button" className="bp-again-btn" onClick={() => setScreen("form")}>
+                    <RefreshCw size={14} /> Draft again
+                  </button>
+                </div>
+                <div className="bp-results-grid">
+                  {ideas.map((idea, i) => (
+                    <IdeaSheet
+                      key={idea.title + i}
+                      idea={idea}
+                      index={i}
+                      total={ideas.length}
+                      saved={isSaved(idea)}
+                      onToggleSave={() => toggleSave(idea)}
+                      onOpen={() => openDetail(idea, "results")}
+                      onExportPDF={exportProjectPDF}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {screen === "detail" && selectedIdea && (
+              <DetailSheet
+                idea={selectedIdea}
+                saved={isSaved(selectedIdea)}
+                onToggleSave={() => toggleSave(selectedIdea)}
+                onBack={() => setScreen(previousScreen)}
+                thread={chatThreads[selectedIdea.title] || []}
+                chatLoading={chatLoading}
+                onAsk={(q) => askMentor(selectedIdea, q)}
+                onExportPDF={exportProjectPDF}
+                onExportMD={exportProjectMarkdown}
+              />
+            )}
+          </>
         )}
 
-        {screen === "loading" && (
-          <div className="bp-loading">
-            <svg className="bp-draw-rect" viewBox="0 0 160 100">
-              <rect x="4" y="4" width="152" height="92" />
-            </svg>
-            <span className="bp-loading-text">Drafting your options…</span>
-          </div>
+        {/* VIEW 2: Viva Defense Simulator */}
+        {activeTab === 'viva' && (
+          <VivaSimulator selectedProject={selectedIdea} />
         )}
 
-        {screen === "results" && (
-          <section>
-            <div className="bp-results-top">
-              <div>
-                <h2 className="bp-section-title">Three sheets, drafted for you</h2>
-                <p className="bp-section-desc" style={{ marginBottom: 0 }}>Open one to see the full build plan, architecture, code, and viva questions.</p>
-              </div>
-              <button type="button" className="bp-again-btn" onClick={() => setScreen("form")}>
-                <RefreshCw size={14} /> Draft again
-              </button>
-            </div>
-            <div className="bp-results-grid">
-              {ideas.map((idea, i) => (
-                <IdeaSheet
-                  key={idea.title + i}
-                  idea={idea}
-                  index={i}
-                  total={ideas.length}
-                  saved={isSaved(idea)}
-                  onToggleSave={() => toggleSave(idea)}
-                  onOpen={() => openDetail(idea, "results")}
-                  onExportPDF={exportProjectPDF}
-                />
-              ))}
-            </div>
-          </section>
+        {/* VIEW 3: Side-by-Side Idea Comparer */}
+        {activeTab === 'comparer' && (
+          <IdeaComparer projects={ideas} onSelectProject={(idea) => openDetail(idea, "results")} />
         )}
 
-        {screen === "saved" && (
+        {/* VIEW 4: Saved Sheets */}
+        {(activeTab === 'saved' || screen === 'saved') && activeTab === 'saved' && (
           savedIdeas.length === 0 ? (
             <div className="bp-empty-state">
               <ListChecks size={28} style={{ marginBottom: 12 }} />
@@ -923,19 +939,6 @@ export default function DraftingTable() {
           )
         )}
 
-        {screen === "detail" && selectedIdea && (
-          <DetailSheet
-            idea={selectedIdea}
-            saved={isSaved(selectedIdea)}
-            onToggleSave={() => toggleSave(selectedIdea)}
-            onBack={() => setScreen(previousScreen)}
-            thread={chatThreads[selectedIdea.title] || []}
-            chatLoading={chatLoading}
-            onAsk={(q) => askMentor(selectedIdea, q)}
-            onExportPDF={exportProjectPDF}
-            onExportMD={exportProjectMarkdown}
-          />
-        )}
       </div>
 
       {/* Gemini API Key Modal */}

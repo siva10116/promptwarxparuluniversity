@@ -8,6 +8,6 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
-  // Fix for GitHub Pages subpath hosting (resolves blank white screen)
-  base: '/promptwarxparuluniversity/',
+  // Use relative base path for universal compatibility across GitHub Pages subpaths
+  base: './',
 })

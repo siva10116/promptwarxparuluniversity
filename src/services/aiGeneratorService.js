@@ -164,55 +164,169 @@ function generateSmartMockIdeas({ domain, skills, difficulty, teamSize, timeline
 }
 
 export async function askMentorQuestion({ question, projectContext, apiKey }) {
-  const effectiveKey = getEffectiveApiKey(apiKey);
-  const ragDocs = retrieveRAGContext(question, 2);
-  const ragContextText = ragDocs.map(d => `${d.title}: ${d.problem}`).join('\n');
+  return converseWithMentorChatbot({
+    question,
+    history: [],
+    userContext: { selectedProject: projectContext },
+    apiKey
+  });
+}
 
+/**
+ * Full Multi-turn Conversational Chatbot with RAG Vector Retrieval over User Data
+ */
+export async function converseWithMentorChatbot({ question, history = [], userContext = {}, apiKey }) {
+  const effectiveKey = getEffectiveApiKey(apiKey);
+  const { selectedProject, savedIdeas = [], currentIdeas = [], userProfile = {} } = userContext;
+
+  // 1. Gather all user data sources into RAG Knowledge Corpus
+  const corpus = [];
+
+  if (selectedProject) {
+    corpus.push({
+      source: "Active Project Blueprint",
+      text: `Title: ${selectedProject.title}\nTagline: ${selectedProject.tagline}\nDomain: ${selectedProject.domain}\nTech Stack: ${(selectedProject.techStack || []).join(', ')}\nProblem: ${selectedProject.problem || selectedProject.problemStatement}\nFeatures: ${(selectedProject.features || []).join('; ')}\nRoadmap: ${(selectedProject.roadmap || []).map(r => r.phase + ': ' + r.detail).join(' | ')}`
+    });
+  }
+
+  savedIdeas.forEach((idea, idx) => {
+    corpus.push({
+      source: `Saved Project #${idx + 1}: ${idea.title}`,
+      text: `Title: ${idea.title}\nDomain: ${idea.domain}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem || idea.problemStatement}`
+    });
+  });
+
+  currentIdeas.forEach((idea, idx) => {
+    if (selectedProject?.title !== idea.title) {
+      corpus.push({
+        source: `Generated Blueprint Option #${idx + 1}: ${idea.title}`,
+        text: `Title: ${idea.title}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem || idea.problemStatement}`
+      });
+    }
+  });
+
+  DEFAULT_IDEAS.forEach(idea => {
+    corpus.push({
+      source: `System Template: ${idea.title}`,
+      text: `Title: ${idea.title}\nDomain: ${idea.domain}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem}`
+    });
+  });
+
+  if (userProfile.skills && userProfile.skills.length > 0) {
+    corpus.push({
+      source: "Student Skill Profile",
+      text: `Interests: ${(userProfile.interests || []).join(', ')}\nStated Skills: ${userProfile.skills.join(', ')}\nTarget Difficulty: ${userProfile.difficulty || 'Intermediate'}\nTimeline: ${userProfile.timeline || '3-4 months'}`
+    });
+  }
+
+  // 2. Perform RAG Vector / Keyword Similarity Scoring over User Corpus
+  const queryTokens = extractNLPKeywords(question);
+  const scoredCorpus = corpus.map(doc => {
+    const docTokens = extractNLPKeywords(doc.text);
+    let score = 0;
+    queryTokens.forEach(token => {
+      if (docTokens.includes(token)) score += 3;
+    });
+    return { ...doc, score };
+  });
+
+  scoredCorpus.sort((a, b) => b.score - a.score);
+  const topRAGChunks = scoredCorpus.slice(0, 4);
+  const ragContextBlock = topRAGChunks.map(c => `[Context from ${c.source}]\n${c.text}`).join('\n\n');
+
+  // 3. Call Gemini API with Multi-turn Conversation & RAG System Preamble
   if (effectiveKey) {
     try {
+      const formattedContents = [];
+
+      // Include previous multi-turn conversation history
+      history.forEach(msg => {
+        formattedContents.push({
+          role: msg.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.text }]
+        });
+      });
+
+      // Append latest turn with retrieved user data & RAG context preamble
+      const latestUserPrompt = `[SYSTEM PREAMBLE & RAG USER DATA CONTEXT]
+You are IdeaForge AI, an expert Engineering Professor and Capstone Mentor powered by Gemini 1.5, RAG, and NLP.
+You have complete access to the student's project data, saved blueprints, skills, and templates below.
+
+RAG RETRIEVED USER DATA:
+${ragContextBlock}
+
+STUDENT PROFILE & CURRENT CONTEXT:
+- Active Selected Project: ${selectedProject ? selectedProject.title : 'None selected'}
+- Saved Projects Count: ${savedIdeas.length}
+- Student Skills: ${userProfile.skills ? userProfile.skills.join(', ') : 'Not specified'}
+
+INSTRUCTIONS:
+1. Answer the student's question directly using the retrieved RAG context and user data.
+2. If they ask about architecture, tech choices, database design, or Viva defense, tailor the response specifically to their projects and skills.
+3. Keep responses structured, professional, and directly actionable (use markdown bolding, code snippets, and bullet points where helpful).
+
+[STUDENT QUESTION]:
+${question}`;
+
+      formattedContents.push({
+        role: 'user',
+        parts: [{ text: latestUserPrompt }]
+      });
+
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are an expert Engineering Professor mentoring a student via RAG & NLP.
-Project Title: "${projectContext?.title || 'Capstone Project'}"
-Tech Stack: ${projectContext?.techStack?.join(', ') || 'General'}
-Problem: ${projectContext?.problem || 'N/A'}
-
-Retrieved RAG Context:
-${ragContextText}
-
-Student Question: "${question}"
-
-Answer concisely (under 120 words), incorporating RAG & NLP insights.`
-            }]
-          }]
+          contents: formattedContents
         })
       });
 
       if (response.ok) {
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "RAG Mentor Response ready.";
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (responseText) return responseText;
+      } else {
+        console.warn(`Gemini API returned status ${response.status}`);
       }
     } catch (e) {
-      console.warn("Live Gemini Mentor RAG API call attempt completed:", e);
+      console.warn("Live Gemini Chatbot API call failed, falling back to NLP RAG engine:", e);
     }
   }
 
-  const nlpTokens = extractNLPKeywords(question);
-  if (nlpTokens.some(t => ['viva', 'professor', 'examiner', 'defense'].includes(t))) {
-    return `🎓 **RAG & NLP Defense Guidance**:
-Examiners evaluate 3 core pillars:
-1. **RAG Architecture**: Explain vector embedding search (HNSW index) and temperature controls to eliminate LLM hallucinations.
-2. **NLP Data Pipeline**: Discuss stop-word removal, tokenization, and TF-IDF/Vector similarity.
-3. **Scalability**: Demonstrate DB indexing and Redis caching under concurrent traffic.`;
+  // 4. Fallback RAG NLP Engine if offline or no API Key
+  const activeTitle = selectedProject?.title || (savedIdeas[0] ? savedIdeas[0].title : 'your capstone project');
+  const activeTech = selectedProject?.techStack || (savedIdeas[0] ? savedIdeas[0].techStack : ['React', 'Node.js', 'Python']);
+
+  if (queryTokens.some(t => ['viva', 'defense', 'examiner', 'question', 'ask'].includes(t))) {
+    return `🎓 **Viva Defense Advisor (RAG Grounded on ${activeTitle})**:
+
+Examiners evaluating **${activeTitle}** will likely ask:
+
+1. **Architecture & Scalability**: Why did you select **${activeTech.join(', ')}**? How does the vector/RAG pipeline handle high concurrency?
+2. **Data Pipeline**: What preprocessing (tokenization, stop-word removal) is applied before embedding?
+3. **Database Indexing**: What indices or schema choices prevent bottlenecking during complex query execution?
+
+*Tip: Connect your custom Gemini API Key in the top header to unlock real-time custom answers!*`;
   }
 
-  return `🤖 **RAG AI Mentor Advice**:
-For **"${projectContext?.title || 'your project'}"**:
-1. Focus on building a functional Minimum Viable Product (MVP) using ${projectContext?.techStack?.[0] || 'your core framework'}.
-2. Use clear RAG pipeline vector chunking for domain data retrieval.
-3. Maintain clean Git commit histories and comprehensive README documentation.`;
+  if (queryTokens.some(t => ['database', 'db', 'postgres', 'mongo', 'sql'].includes(t))) {
+    return `🗄️ **Database Recommendation for ${activeTitle}**:
+
+Based on your project requirements:
+- Use **PostgreSQL** if your data demands relational integrity, complex queries, and ACID transactions.
+- Use **MongoDB / Vector DB (Qdrant/Pinecone)** if storing unstructured JSON documents, vector embeddings for RAG, or fast key-value lookups.
+
+For **${activeTitle}**, a hybrid approach (PostgreSQL for user & project state + Vector DB for embeddings) provides an A+ grade architecture.`;
+  }
+
+  return `🤖 **IdeaForge Conversational Mentor**:
+
+For **"${activeTitle}"** using **${activeTech.slice(0, 3).join(', ')}**:
+
+1. **Next Implementation Step**: Focus on setting up the API endpoint contract before starting front-end state management.
+2. **RAG Context Integration**: Ensure retrieved documents are formatted with distinct metadata headers.
+3. **Documentation**: Prepare your IEEE synopsis and architectural sequence diagrams early for review.
+
+*Connect your Gemini API Key in the chat settings to ask any specific question with live LLM intelligence!*`;
 }
+

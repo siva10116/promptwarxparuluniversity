@@ -937,6 +937,15 @@ export default function IdeaForgeApp() {
         isOpen={isChatbotModalOpen}
         onClose={() => setIsChatbotModalOpen(false)}
         selectedProject={selectedIdea}
+        savedIdeas={savedIdeas}
+        currentIdeas={ideas}
+        userProfile={{
+          interests: selectedInterests,
+          skills: [...selectedSkills, ...customSkills],
+          difficulty,
+          timeline: duration,
+          teamSize
+        }}
       />
 
     </div>

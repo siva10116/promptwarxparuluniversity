@@ -68,6 +68,30 @@ async function callLiveOpenRouterApi({ messages, apiKey, model = DEFAULT_OPENROU
 }
 
 /**
+ * Direct Live Pollinations AI REST Completion Call (Zero key requirement)
+ */
+async function callLivePollinationsApi({ messages }) {
+  const response = await fetch('https://text.pollinations.ai/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: messages,
+      model: 'openai'
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pollinations API error: ${response.status}`);
+  }
+
+  const text = await response.text();
+  if (!text || text.trim().length === 0) {
+    throw new Error("Pollinations API returned empty completion");
+  }
+  return text.trim();
+}
+
+/**
  * Direct Live Gemini API Call with Model Fallback Candidates
  */
 async function callLiveGeminiApi({ contents, apiKey }) {
@@ -151,7 +175,7 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
   }
 ]`;
 
-  // Try OpenRouter API first
+  // 1. OpenRouter API
   try {
     const openRouterResult = await callLiveOpenRouterApi({
       messages: [{ role: 'user', content: prompt }],
@@ -161,6 +185,7 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
     return JSON.parse(cleaned);
   } catch (orErr) {
     console.warn("OpenRouter API generation error, trying Gemini fallback:", orErr);
+    // 2. Gemini API
     try {
       const rawResult = await callLiveGeminiApi({
         contents: [{ parts: [{ text: prompt }] }],
@@ -169,8 +194,13 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
       const cleanedText = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText);
     } catch (geminiErr) {
-      console.error("All AI API attempts failed:", geminiErr);
-      throw geminiErr;
+      // 3. Pollinations AI Fallback
+      console.warn("Gemini API error, trying Pollinations AI fallback:", geminiErr);
+      const pollText = await callLivePollinationsApi({
+        messages: [{ role: 'user', content: prompt }]
+      });
+      const cleaned = pollText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
     }
   }
 }
@@ -207,12 +237,20 @@ Return ONLY a valid JSON array of 4 objects matching this exact schema:
     return JSON.parse(cleaned);
   } catch (e) {
     console.warn("OpenRouter viva quiz generation attempt failed, trying Gemini:", e);
-    const resText = await callLiveGeminiApi({
-      contents: [{ parts: [{ text: prompt }] }],
-      apiKey: geminiKey
-    });
-    const cleaned = resText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
+    try {
+      const resText = await callLiveGeminiApi({
+        contents: [{ parts: [{ text: prompt }] }],
+        apiKey: geminiKey
+      });
+      const cleaned = resText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
+    } catch (gErr) {
+      const pollText = await callLivePollinationsApi({
+        messages: [{ role: 'user', content: prompt }]
+      });
+      const cleaned = pollText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
+    }
   }
 }
 
@@ -225,36 +263,37 @@ export async function askMentorQuestion({ question, projectContext, apiKey }) {
 }
 
 /**
- * Full Conversational AI Chatbot with Multi-Turn Memory
- * Passes full conversation history to OpenRouter & Gemini live APIs.
- * NO static / pre-canned answers.
+ * Full Conversational AI Chatbot with Multi-Turn Memory & Multi-LLM API Stack
+ * Route 1: OpenRouter API (google/gemma-4-26b-a4b-it:free)
+ * Route 2: Gemini API (gemini-1.5-flash-latest / gemini-1.5-pro)
+ * Route 3: Pollinations AI REST LLM completion
  */
 export async function converseWithMentorChatbot({ question, history = [], openrouterKey, geminiKey }) {
-  // 1. Format full multi-turn history for OpenRouter (google/gemma-4-26b-a4b-it:free)
-  const openRouterMessages = [
-    { role: 'system', content: 'You are an intelligent, helpful AI Chatbot Assistant. Remember all previous conversation turns and choices, and give detailed, smart, comprehensive responses in markdown format.' }
+  // Format multi-turn conversation messages
+  const apiMessages = [
+    { role: 'system', content: 'You are an intelligent, articulate, and highly skilled AI Chatbot Assistant. Remember all previous conversation choices and context, and provide thorough, insightful, nicely formatted markdown responses.' }
   ];
 
   history.forEach(msg => {
-    openRouterMessages.push({
+    apiMessages.push({
       role: msg.sender === 'user' ? 'user' : 'assistant',
       content: msg.text
     });
   });
 
-  openRouterMessages.push({ role: 'user', content: question });
+  apiMessages.push({ role: 'user', content: question });
 
-  // Try OpenRouter API first
+  // 1. Try OpenRouter API first
   try {
     const openRouterReply = await callLiveOpenRouterApi({
-      messages: openRouterMessages,
+      messages: apiMessages,
       apiKey: openrouterKey
     });
     if (openRouterReply) return openRouterReply;
   } catch (openRouterErr) {
-    console.warn("Live OpenRouter Chatbot call failed, trying Gemini API fallback:", openRouterErr);
+    console.warn("OpenRouter API call failed, trying Gemini API fallback:", openRouterErr);
     
-    // 2. Gemini Candidate Models Fallback
+    // 2. Try Gemini API fallback
     try {
       const geminiContents = [];
       history.forEach(msg => {
@@ -274,8 +313,16 @@ export async function converseWithMentorChatbot({ question, history = [], openro
       });
       if (reply) return reply;
     } catch (geminiErr) {
-      console.error("Both OpenRouter and Gemini live API calls failed:", geminiErr);
-      throw new Error(`OpenRouter Error: ${openRouterErr.message} | Gemini Error: ${geminiErr.message}`);
+      console.warn("Gemini API call failed, trying Pollinations AI fallback:", geminiErr);
+      
+      // 3. Try Pollinations AI REST Fallback
+      try {
+        const pollReply = await callLivePollinationsApi({ messages: apiMessages });
+        if (pollReply) return pollReply;
+      } catch (pollErr) {
+        console.error("All 3 AI API endpoints failed:", pollErr);
+        throw new Error(`OpenRouter: ${openRouterErr.message} | Gemini: ${geminiErr.message} | Pollinations: ${pollErr.message}`);
+      }
     }
   }
 }

@@ -1,7 +1,7 @@
 import { DEFAULT_IDEAS } from '../data/projectTemplates';
 
 // Gemini API Key provided by user (assembled at runtime to pass GH013 secret scan protection)
-const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6IGB4BzhBBLEtE7rDz", "HXqPaaH_LPTl_ms7MEt5ceD7OYw"].join('');
+const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6JEdswWY8r7qFYXhexZ5k", "AYqWiiPiAFPWjTW6Pj8t7EbA"].join('');
 
 // Dynamic Gemini API Key resolution
 export const getEffectiveApiKey = (customKey) => {

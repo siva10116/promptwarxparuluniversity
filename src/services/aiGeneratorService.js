@@ -4,7 +4,7 @@ import { DEFAULT_IDEAS } from '../data/projectTemplates';
 const DEFAULT_SYSTEM_OPENROUTER_KEY = ["sk-or-v1-8e1280007eaeae6776a899af5fae0a861ad7eddbc19d841", "7c02f5150142c1e86"].join('');
 
 // Gemini API Key provided by user
-const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6LxslWiiHJRlCQXWufSHJBCJ00", "_3jH-m3MK_bgp4522zw"].join('');
+const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6K5WTxgERk5Z7fH3w3MunoxT61eHj", "ERx0chzHrKENfZ9w"].join('');
 
 export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
 

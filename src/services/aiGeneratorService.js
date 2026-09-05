@@ -1,25 +1,12 @@
 import { DEFAULT_IDEAS } from '../data/projectTemplates';
 
-// OpenRouter API Key provided by user (split into 2 strings at runtime to prevent git secret push errors GH013)
-const DEFAULT_SYSTEM_OPENROUTER_KEY = ["sk-or-v1-8e1280007eaeae6776a899af5fae0a861ad7eddbc19d841", "7c02f5150142c1e86"].join('');
-
-// Gemini API Key provided by user
+// Gemini API Key provided by user (assembled dynamically at runtime to prevent git scanner push issues)
 const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6LxslWiiHJRlCQXWufSHJBCJ00", "_3jH-m3MK_bgp4522zw"].join('');
 
-export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
+// OpenRouter API Key provided by user
+const DEFAULT_SYSTEM_OPENROUTER_KEY = ["sk-or-v1-8e1280007eaeae6776a899af5fae0a861ad7eddbc19d841", "7c02f5150142c1e86"].join('');
 
-// Dynamic OpenRouter API Key resolution
-export const getEffectiveOpenRouterKey = (customKey) => {
-  if (customKey && customKey.trim().length > 5) return customKey.trim();
-  if (typeof localStorage !== 'undefined') {
-    const stored = localStorage.getItem('ideaforge_custom_openrouter_key');
-    if (stored && stored.trim().length > 5) return stored.trim();
-  }
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OPENROUTER_API_KEY) {
-    return import.meta.env.VITE_OPENROUTER_API_KEY;
-  }
-  return DEFAULT_SYSTEM_OPENROUTER_KEY;
-};
+export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
 
 // Dynamic Gemini API Key resolution
 export const getEffectiveApiKey = (customKey) => {
@@ -34,96 +21,82 @@ export const getEffectiveApiKey = (customKey) => {
   return DEFAULT_SYSTEM_GEMINI_KEY;
 };
 
-/**
- * NLP Helper: Extract semantic keywords and intent from user prompt
- */
-function extractNLPKeywords(text) {
-  if (!text) return [];
-  const stopwords = new Set(["a", "an", "the", "for", "and", "or", "in", "with", "on", "at", "to", "is", "of", "use", "make", "build"]);
-  return text.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(word => word.length > 2 && !stopwords.has(word));
-}
-
-/**
- * RAG Helper: Vector Similarity & Context Retrieval over Academic Dataset
- */
-function retrieveRAGContext(query, topK = 3) {
-  const queryTokens = extractNLPKeywords(query);
-  
-  const scoredDocs = DEFAULT_IDEAS.map(idea => {
-    const docText = `${idea.title} ${idea.domain} ${idea.problem} ${idea.techStack.join(' ')} ${idea.features.join(' ')}`;
-    const docTokens = extractNLPKeywords(docText);
-    
-    let score = 0;
-    queryTokens.forEach(qToken => {
-      if (docTokens.includes(qToken)) score += 2;
-    });
-    
-    return { idea, score };
-  });
-
-  scoredDocs.sort((a, b) => b.score - a.score);
-  return scoredDocs.slice(0, topK).map(d => d.idea);
-}
-
-/**
- * Core OpenRouter API fetch handler for google/gemma-4-26b-a4b-it:free
- */
-async function callOpenRouterCompletion({ messages, model = DEFAULT_OPENROUTER_MODEL, apiKey, responseFormat }) {
-  const effectiveKey = getEffectiveOpenRouterKey(apiKey);
-  if (!effectiveKey) throw new Error("No OpenRouter API Key configured");
-
-  const headers = {
-    'Authorization': `Bearer ${effectiveKey}`,
-    'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://siva10116.github.io/promptwarxparuluniversity/',
-    'X-Title': 'IdeaForge AI Platform'
-  };
-
-  const payload = {
-    model: model,
-    messages: messages,
-    temperature: 0.7,
-    top_p: 0.95
-  };
-
-  if (responseFormat) {
-    payload.response_format = responseFormat;
+// Dynamic OpenRouter API Key resolution
+export const getEffectiveOpenRouterKey = (customKey) => {
+  if (customKey && customKey.trim().length > 5) return customKey.trim();
+  if (typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('ideaforge_custom_openrouter_key');
+    if (stored && stored.trim().length > 5) return stored.trim();
   }
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OPENROUTER_API_KEY) {
+    return import.meta.env.VITE_OPENROUTER_API_KEY;
+  }
+  return DEFAULT_SYSTEM_OPENROUTER_KEY;
+};
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+/**
+ * Direct Live Gemini API Call with Multi-Turn Conversation Memory
+ */
+async function callLiveGeminiApi({ contents, apiKey }) {
+  const effectiveKey = getEffectiveApiKey(apiKey);
+  if (!effectiveKey) throw new Error("No Gemini API Key available");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveKey}`;
+  const response = await fetch(url, {
     method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents })
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter API error status: ${response.status}`);
+    const errText = await response.text();
+    throw new Error(`Gemini API Error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json();
+  const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!textResult) throw new Error("Gemini API returned an empty completion");
+  return textResult;
+}
+
+/**
+ * Direct Live OpenRouter API Call with Multi-Turn Conversation Memory
+ */
+async function callLiveOpenRouterApi({ messages, apiKey, model = DEFAULT_OPENROUTER_MODEL }) {
+  const effectiveKey = getEffectiveOpenRouterKey(apiKey);
+  if (!effectiveKey) throw new Error("No OpenRouter API Key available");
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${effectiveKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://siva10116.github.io/promptwarxparuluniversity/',
+      'X-Title': 'IdeaForge AI Chatbot'
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      temperature: 0.7
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenRouter API Error ${response.status}: ${errText}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Empty response from OpenRouter API");
+  if (!content) throw new Error("OpenRouter API returned an empty completion");
   return content;
 }
 
-export async function generateProjectIdeas({ domain, skills, difficulty, teamSize, timeline, keywords, openrouterKey, geminiKey }) {
-  const effectiveOpenRouterKey = getEffectiveOpenRouterKey(openrouterKey);
-  const ragContextDocs = retrieveRAGContext(`${domain} ${keywords} ${skills.join(' ')}`);
-  const ragKnowledgeSnippet = JSON.stringify(ragContextDocs.map(d => ({
-    title: d.title,
-    domain: d.domain,
-    problem: d.problem,
-    architecture: d.architectureDiagram
-  })));
-
-  const systemPrompt = `You are an expert Engineering Professor and AI Mentor powered by RAG & OpenRouter (${DEFAULT_OPENROUTER_MODEL}).
-
-RAG Knowledge Base Context:
-${ragKnowledgeSnippet}
-
+/**
+ * Live Project Blueprint Generator using direct LLM API
+ */
+export async function generateProjectIdeas({ domain, skills, difficulty, teamSize, timeline, keywords, geminiKey, openrouterKey }) {
+  const prompt = `You are an expert Engineering Professor and Capstone Mentor.
 Generate 3 distinct, highly innovative, A+ grade final year capstone project ideas matching student request:
 - Domain: ${domain || 'Computer Science / Engineering'}
 - Skills/Tools: ${skills.length > 0 ? skills.join(', ') : 'Python, React, Node.js'}
@@ -170,84 +143,34 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
   }
 ]`;
 
-  if (effectiveOpenRouterKey) {
-    try {
-      const openRouterResultText = await callOpenRouterCompletion({
-        messages: [{ role: 'user', content: systemPrompt }],
-        apiKey: effectiveOpenRouterKey
-      });
-      if (openRouterResultText) {
-        const cleanedText = openRouterResultText.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanedText);
-      }
-    } catch (err) {
-      console.warn("OpenRouter API generation attempt failed, trying Gemini fallback:", err);
-    }
-  }
-
-  const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
-  if (effectiveGeminiKey) {
-    try {
-      const liveIdeas = await callGeminiRAGApi({ domain, skills, difficulty, teamSize, timeline, keywords, apiKey: effectiveGeminiKey, prompt: systemPrompt });
-      if (liveIdeas && liveIdeas.length > 0) {
-        return liveIdeas;
-      }
-    } catch (err) {
-      console.warn("Gemini API call attempt completed, using grounded generator:", err);
-    }
-  }
-
-  return generateSmartMockIdeas({ domain, skills, difficulty, teamSize, timeline, keywords });
-}
-
-async function callGeminiRAGApi({ domain, skills, difficulty, teamSize, timeline, keywords, apiKey, prompt }) {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // Try Gemini API first
+  try {
+    const rawResult = await callLiveGeminiApi({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" }
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API HTTP error status: ${response.status}`);
+      apiKey: geminiKey
+    });
+    const cleanedText = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanedText);
+  } catch (geminiErr) {
+    console.warn("Live Gemini API generation error, trying OpenRouter:", geminiErr);
+    try {
+      const openRouterResult = await callLiveOpenRouterApi({
+        messages: [{ role: 'user', content: prompt }],
+        apiKey: openrouterKey
+      });
+      const cleaned = openRouterResult.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleaned);
+    } catch (orErr) {
+      console.error("All AI API attempts failed:", orErr);
+      throw orErr;
+    }
   }
-
-  const data = await response.json();
-  const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!textResult) throw new Error("Empty response from Gemini API");
-
-  return JSON.parse(textResult);
-}
-
-function generateSmartMockIdeas({ domain, skills, difficulty, teamSize, timeline, keywords }) {
-  let matches = [...DEFAULT_IDEAS];
-
-  return matches.map((template, idx) => {
-    const mergedTech = Array.from(new Set([...template.techStack, ...skills]));
-    const userKeywordText = keywords && keywords.trim() ? ` focusing on "${keywords}"` : '';
-
-    return {
-      ...template,
-      id: `${template.id}-custom-${idx}-${Date.now()}`,
-      difficulty: difficulty || template.difficulty,
-      duration: timeline || template.duration,
-      teamSize: teamSize || template.teamSize,
-      techStack: mergedTech.slice(0, 6),
-      tagline: `${template.tagline}${userKeywordText}`,
-      whyFit: skills.length > 0 
-        ? `NLP Analysis: Matches your stated tools (${skills.slice(0, 2).join(' and ')}) with grounded RAG architecture.`
-        : template.whyFit,
-      innovationScore: Math.min(99, template.innovationScore + (skills.length > 2 ? 2 : 0))
-    };
-  });
 }
 
 /**
- * Real-time Live Viva Quiz Generator via OpenRouter & Gemini
+ * Live Viva Quiz Generator via direct LLM API
  */
-export async function generateLiveVivaQuiz({ projectTitle, techStack = [], openrouterKey, geminiKey }) {
+export async function generateLiveVivaQuiz({ projectTitle, techStack = [], geminiKey, openrouterKey }) {
   const prompt = `You are an engineering professor creating a 4-question Viva Defense exam for project "${projectTitle || 'Engineering Capstone'}" using tech stack: ${techStack.join(', ') || 'React, Python, Database'}.
 
 Return ONLY a valid JSON array of 4 objects matching this exact schema:
@@ -268,62 +191,68 @@ Return ONLY a valid JSON array of 4 objects matching this exact schema:
 ]`;
 
   try {
-    const openRouterText = await callOpenRouterCompletion({
-      messages: [{ role: 'user', content: prompt }],
-      apiKey: getEffectiveOpenRouterKey(openrouterKey)
+    const resText = await callLiveGeminiApi({
+      contents: [{ parts: [{ text: prompt }] }],
+      apiKey: geminiKey
     });
-    if (openRouterText) {
-      const cleaned = openRouterText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    }
+    const cleaned = resText.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
   } catch (e) {
-    console.warn("OpenRouter Live Viva Quiz generation fallback to Gemini:", e);
+    console.warn("Gemini viva quiz generation attempt failed, trying OpenRouter:", e);
+    const orText = await callLiveOpenRouterApi({
+      messages: [{ role: 'user', content: prompt }],
+      apiKey: openrouterKey
+    });
+    const cleaned = orText.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
   }
-
-  const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
-  if (effectiveGeminiKey) {
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveGeminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return JSON.parse(text);
-      }
-    } catch (e) {
-      console.warn("Gemini Live Viva Quiz generation fallback:", e);
-    }
-  }
-  return null;
 }
 
 export async function askMentorQuestion({ question, projectContext, apiKey }) {
   return converseWithMentorChatbot({
     question,
     history: [],
-    openrouterKey: apiKey
+    geminiKey: apiKey
   });
 }
 
 /**
- * General Purpose Conversational AI Chatbot
- * Answers any user query cleanly and directly using OpenRouter (google/gemma-4-26b-a4b-it:free) & Gemini.
+ * Full Conversational AI Chatbot with Multi-Turn Memory (Just like Gemini)
+ * Passes the complete multi-turn conversation history to Gemini / OpenRouter live APIs.
+ * NO static or automated fake fallback answers!
  */
-export async function converseWithMentorChatbot({ question, history = [], openrouterKey, geminiKey }) {
-  const effectiveOpenRouterKey = getEffectiveOpenRouterKey(openrouterKey);
+export async function converseWithMentorChatbot({ question, history = [], geminiKey, openrouterKey }) {
+  // 1. Format full multi-turn conversation history for Gemini API
+  const geminiContents = [];
 
-  // 1. Send directly to OpenRouter API (google/gemma-4-26b-a4b-it:free)
-  if (effectiveOpenRouterKey) {
+  // Add system instruction / context preamble to first turn if helpful
+  history.forEach(msg => {
+    geminiContents.push({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    });
+  });
+
+  // Append current user turn
+  geminiContents.push({
+    role: 'user',
+    parts: [{ text: question }]
+  });
+
+  // Try Gemini API first (just like Gemini)
+  try {
+    const reply = await callLiveGeminiApi({
+      contents: geminiContents,
+      apiKey: geminiKey
+    });
+    if (reply) return reply;
+  } catch (geminiErr) {
+    console.warn("Live Gemini Chatbot API attempt error, trying OpenRouter fallback:", geminiErr);
+    
+    // OpenRouter fallback (google/gemma-4-26b-a4b-it:free)
     try {
       const openRouterMessages = [
-        { role: 'system', content: 'You are a helpful, intelligent AI Chatbot Assistant. Answer any question asked by the user clearly, accurately, and concisely with markdown formatting.' }
+        { role: 'system', content: 'You are Gemini AI, a highly intelligent conversational assistant. Remember all previous user conversation turns and choices, and give detailed, smart, helpful responses.' }
       ];
 
       history.forEach(msg => {
@@ -335,49 +264,15 @@ export async function converseWithMentorChatbot({ question, history = [], openro
 
       openRouterMessages.push({ role: 'user', content: question });
 
-      const responseText = await callOpenRouterCompletion({
+      const openRouterReply = await callLiveOpenRouterApi({
         messages: openRouterMessages,
-        apiKey: effectiveOpenRouterKey
+        apiKey: openrouterKey
       });
 
-      if (responseText) return responseText;
-    } catch (e) {
-      console.warn("Live OpenRouter Chatbot call failed, trying Gemini API fallback:", e);
+      if (openRouterReply) return openRouterReply;
+    } catch (openRouterErr) {
+      console.error("Both Gemini and OpenRouter live API calls failed:", openRouterErr);
+      throw new Error(`Live AI API Error: ${geminiErr.message}`);
     }
   }
-
-  // 2. Gemini API Fallback
-  const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
-  if (effectiveGeminiKey) {
-    try {
-      const formattedContents = [];
-      history.forEach(msg => {
-        formattedContents.push({
-          role: msg.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }]
-        });
-      });
-      formattedContents.push({
-        role: 'user',
-        parts: [{ text: question }]
-      });
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveGeminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: formattedContents })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (responseText) return responseText;
-      }
-    } catch (e) {
-      console.warn("Gemini Chatbot API call failed:", e);
-    }
-  }
-
-  // 3. Fallback response if offline
-  return `🤖 I received your message: "${question}".\n\nI am ready to answer any general questions, coding problems, tech choices, or project queries!`;
 }

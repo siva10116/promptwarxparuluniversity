@@ -19,7 +19,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
   const defaultWelcomeMessage = {
     id: 1,
     sender: 'mentor',
-    text: `Hello! I am your **AI Chatbot Assistant** powered by **OpenRouter (${DEFAULT_OPENROUTER_MODEL})**.\n\nAsk me any question — coding, tech advice, general knowledge, database choices, or project help!`,
+    text: `Hello! I am your **Gemini AI Chatbot Assistant**.\n\nI remember your past decisions and context throughout our conversation. Ask me any question — coding, technology, general knowledge, or capstone guidance!`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
 
@@ -77,7 +77,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
   };
 
   const handleClearHistory = () => {
-    if (window.confirm("Clear conversation history and restart chatbot?")) {
+    if (window.confirm("Clear conversation memory and restart chatbot?")) {
       const reset = [defaultWelcomeMessage];
       setMessages(reset);
       localStorage.removeItem('ideaforge_chat_history');
@@ -90,7 +90,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ai-chatbot-transcript-${Date.now()}.md`;
+    a.download = `gemini-chatbot-transcript-${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -121,6 +121,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
     setIsTyping(true);
 
     try {
+      // Send entire conversation history for full multi-turn memory
       const historyTurns = updatedMessages.map(m => ({
         sender: m.sender,
         text: m.text
@@ -128,9 +129,9 @@ export default function MentorChatModal({ isOpen, onClose }) {
 
       const responseText = await converseWithMentorChatbot({
         question: query,
-        history: historyTurns.slice(-10),
-        openrouterKey: customOpenRouterKey,
-        geminiKey: customGeminiKey
+        history: historyTurns.slice(-15),
+        geminiKey: customGeminiKey,
+        openrouterKey: customOpenRouterKey
       });
 
       const mentorMsg = {
@@ -147,7 +148,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
         {
           id: Date.now() + 1,
           sender: 'mentor',
-          text: "⚠️ Chatbot API service encountered an error. Please verify your OpenRouter or Gemini API key.",
+          text: `⚠️ **AI API Error**: ${err.message || 'Failed to fetch live API response. Please verify API key.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -157,10 +158,10 @@ export default function MentorChatModal({ isOpen, onClose }) {
   };
 
   const suggestPrompts = [
-    "Write a Python script for array sorting",
-    "Explain REST APIs vs GraphQL in simple terms",
-    "What database is best for real-time web applications?",
-    "How do I optimize SQL database query performance?"
+    "Write a Python script for real-time data processing",
+    "Explain microservices vs monolith architecture",
+    "How do I design a high-throughput SQL database schema?",
+    "What are the top 5 questions examiners ask in viva defense?"
   ];
 
   // Markdown Formatter for Chat Messages
@@ -213,13 +214,13 @@ export default function MentorChatModal({ isOpen, onClose }) {
             </div>
             <div>
               <h3 className="font-extrabold text-base flex items-center space-x-2 text-white">
-                <span>AI General Chatbot</span>
+                <span>Gemini AI Chatbot</span>
                 <span className="px-2 py-0.5 rounded-full bg-[#5FD6A0]/20 text-[#5FD6A0] border border-[#5FD6A0]/30 text-[10px] font-mono">
-                  Gemma 26B Free
+                  Live API Multi-turn
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Ask any query — coding, general Q&A, technology, or capstone advice
+                100% Live AI Responses • Full Multi-turn Memory
               </p>
             </div>
           </div>
@@ -231,7 +232,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
               title="Configure API Keys"
             >
               <Key className="w-4 h-4 text-[#FF6A3D]" />
-              <span className="hidden sm:inline">API Key</span>
+              <span className="hidden sm:inline">API Keys</span>
             </button>
 
             <button
@@ -265,6 +266,23 @@ export default function MentorChatModal({ isOpen, onClose }) {
           <div className="p-4 bg-[#0e172e] border-b border-[#2a3c6b] space-y-3 text-xs">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <Key className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-slate-300 font-mono">Gemini Key:</span>
+                <input
+                  type="password"
+                  value={customGeminiKey}
+                  onChange={(e) => handleSaveGeminiKey(e.target.value)}
+                  placeholder="AQ.Ab8RN6LxslWiiHJRlCQ..."
+                  className="w-full sm:w-72 px-3 py-1.5 bg-[#121c38] border border-[#2a3c6b] rounded-lg text-white font-mono focus:outline-none focus:border-amber-400"
+                />
+              </div>
+              <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded font-mono text-[10px]">
+                Primary Model: gemini-1.5-flash
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-[#2a3c6b]/50 pt-2">
+              <div className="flex items-center space-x-2 w-full sm:w-auto">
                 <Key className="w-4 h-4 text-[#5FD6A0] shrink-0" />
                 <span className="text-slate-300 font-mono">OpenRouter Key:</span>
                 <input
@@ -275,25 +293,8 @@ export default function MentorChatModal({ isOpen, onClose }) {
                   className="w-full sm:w-72 px-3 py-1.5 bg-[#121c38] border border-[#2a3c6b] rounded-lg text-white font-mono focus:outline-none focus:border-[#5FD6A0]"
                 />
               </div>
-              <span className="px-2 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 rounded font-mono text-[10px]">
-                Model: {DEFAULT_OPENROUTER_MODEL}
-              </span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-[#2a3c6b]/50 pt-2">
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <Key className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="text-slate-300 font-mono">Gemini Key (Fallback):</span>
-                <input
-                  type="password"
-                  value={customGeminiKey}
-                  onChange={(e) => handleSaveGeminiKey(e.target.value)}
-                  placeholder="AQ.Ab8RN6LxslWiiHJRlCQ..."
-                  className="w-full sm:w-72 px-3 py-1.5 bg-[#121c38] border border-[#2a3c6b] rounded-lg text-white font-mono focus:outline-none focus:border-amber-400"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400">
-                Connected API Ready
+              <span className="text-[10px] text-slate-400 font-mono">
+                Model: google/gemma-4-26b-a4b-it:free
               </span>
             </div>
           </div>
@@ -362,7 +363,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
           {isTyping && (
             <div className="flex items-center space-x-2 text-slate-400 text-xs p-2">
               <Bot className="w-4 h-4 text-[#5FD6A0] animate-bounce" />
-              <span className="font-mono">AI Chatbot is answering query...</span>
+              <span className="font-mono">Gemini AI is generating live response...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -374,7 +375,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
             type="text"
             value={inputQuestion}
             onChange={(e) => setInputQuestion(e.target.value)}
-            placeholder="Ask any question..."
+            placeholder="Type your message to Gemini AI..."
             className="flex-1 px-4 py-3 bg-[#121c38] border border-[#2a3c6b] rounded-2xl text-xs sm:text-sm text-white focus:outline-none focus:border-[#5FD6A0] placeholder:text-slate-500"
           />
           <button

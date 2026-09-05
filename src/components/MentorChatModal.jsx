@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  X, Send, Bot, User, Sparkles, HelpCircle, BookOpen, MessageSquare,
-  RefreshCw, Key, Download, Copy, Check, RotateCcw, Sliders, Database, Cpu
+  X, Send, Bot, User, Sparkles, HelpCircle, MessageSquare,
+  RefreshCw, Key, Download, Copy, Check, RotateCcw, Cpu
 } from 'lucide-react';
 import { converseWithMentorChatbot, DEFAULT_OPENROUTER_MODEL } from '../services/aiGeneratorService';
 
-export default function MentorChatModal({ isOpen, onClose, selectedProject, savedIdeas = [], currentIdeas = [], userProfile = {} }) {
+export default function MentorChatModal({ isOpen, onClose }) {
   const [customOpenRouterKey, setCustomOpenRouterKey] = useState(() => {
     return localStorage.getItem('ideaforge_custom_openrouter_key') || '';
   });
@@ -19,9 +19,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
   const defaultWelcomeMessage = {
     id: 1,
     sender: 'mentor',
-    text: selectedProject 
-      ? `Hello! I am your **IdeaForge AI Conversational Mentor** powered by **OpenRouter (${DEFAULT_OPENROUTER_MODEL})** and RAG.\n\nI have loaded your project data for **"${selectedProject.title}"** (Tech Stack: ${selectedProject.techStack?.join(', ')}).\n\nAsk me anything about system architecture, literature surveys, DB choices, or Viva defense questions!`
-      : `Hello! I am your **IdeaForge AI Conversational Mentor** powered by **OpenRouter (${DEFAULT_OPENROUTER_MODEL})**.\n\nI am grounded on your saved blueprints (${savedIdeas.length} saved), active interests, and system templates.\n\nHow can I assist your final year engineering capstone project today?`,
+    text: `Hello! I am your **AI Chatbot Assistant** powered by **OpenRouter (${DEFAULT_OPENROUTER_MODEL})**.\n\nAsk me any question — coding, tech advice, general knowledge, database choices, or project help!`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
 
@@ -79,7 +77,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
   };
 
   const handleClearHistory = () => {
-    if (window.confirm("Clear conversation history and restart mentor chat?")) {
+    if (window.confirm("Clear conversation history and restart chatbot?")) {
       const reset = [defaultWelcomeMessage];
       setMessages(reset);
       localStorage.removeItem('ideaforge_chat_history');
@@ -92,7 +90,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ideaforge-openrouter-chat-transcript-${Date.now()}.md`;
+    a.download = `ai-chatbot-transcript-${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -131,12 +129,6 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
       const responseText = await converseWithMentorChatbot({
         question: query,
         history: historyTurns.slice(-10),
-        userContext: {
-          selectedProject,
-          savedIdeas,
-          currentIdeas,
-          userProfile
-        },
         openrouterKey: customOpenRouterKey,
         geminiKey: customGeminiKey
       });
@@ -155,7 +147,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
         {
           id: Date.now() + 1,
           sender: 'mentor',
-          text: "⚠️ OpenRouter API service encountered an error. Please verify your OpenRouter key or try again.",
+          text: "⚠️ Chatbot API service encountered an error. Please verify your OpenRouter or Gemini API key.",
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -164,19 +156,14 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
     }
   };
 
-  const suggestPrompts = selectedProject ? [
-    `What 5 tricky viva questions will examiners ask about "${selectedProject.title}"?`,
-    `Explain the system architecture flow for ${selectedProject.title}`,
-    `Should I use SQL or NoSQL database for this project?`,
-    `Draft an IEEE Literature Survey outline for ${selectedProject.title}`
-  ] : [
-    "Recommend an A+ grade AI/ML final year project for my skills",
-    "What viva questions do professors ask about React & Python backends?",
-    "How do I structure the System Architecture chapter in my report?",
-    "Compare side-by-side my saved blueprints"
+  const suggestPrompts = [
+    "Write a Python script for array sorting",
+    "Explain REST APIs vs GraphQL in simple terms",
+    "What database is best for real-time web applications?",
+    "How do I optimize SQL database query performance?"
   ];
 
-  // Basic Markdown Formatter for Chat Messages
+  // Markdown Formatter for Chat Messages
   const renderFormattedText = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -216,28 +203,23 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn text-white">
-      <div className="bg-[#121c38] border border-[#2a3c6b] rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col h-[660px] relative">
+      <div className="bg-[#121c38] border border-[#2a3c6b] rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col h-[650px] relative">
         
         {/* Header */}
         <div className="p-4 sm:p-5 bg-[#0b1329] border-b border-[#2a3c6b] flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#6344f5] via-purple-600 to-[#FF6A3D] flex items-center justify-center shadow-lg">
-              <Cpu className="w-6 h-6 text-white animate-pulse" />
+              <Bot className="w-6 h-6 text-white animate-pulse" />
             </div>
             <div>
               <h3 className="font-extrabold text-base flex items-center space-x-2 text-white">
-                <span>IdeaForge AI OpenRouter Chat</span>
+                <span>AI General Chatbot</span>
                 <span className="px-2 py-0.5 rounded-full bg-[#5FD6A0]/20 text-[#5FD6A0] border border-[#5FD6A0]/30 text-[10px] font-mono">
                   Gemma 26B Free
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 flex items-center space-x-1">
-                <Database className="w-3 h-3 text-indigo-400" />
-                <span>
-                  {selectedProject 
-                    ? `Active: ${selectedProject.title.slice(0, 26)}...` 
-                    : `Grounded on OpenRouter API & ${savedIdeas.length} saved blueprints`}
-                </span>
+              <p className="text-xs text-slate-400">
+                Ask any query — coding, general Q&A, technology, or capstone advice
               </p>
             </div>
           </div>
@@ -249,7 +231,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
               title="Configure API Keys"
             >
               <Key className="w-4 h-4 text-[#FF6A3D]" />
-              <span className="hidden sm:inline">OpenRouter Key</span>
+              <span className="hidden sm:inline">API Key</span>
             </button>
 
             <button
@@ -294,7 +276,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
                 />
               </div>
               <span className="px-2 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 rounded font-mono text-[10px]">
-                Model: google/gemma-4-26b-a4b-it:free
+                Model: {DEFAULT_OPENROUTER_MODEL}
               </span>
             </div>
 
@@ -311,20 +293,11 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
                 />
               </div>
               <span className="text-[10px] text-slate-400">
-                Connected via OpenRouter API
+                Connected API Ready
               </span>
             </div>
           </div>
         )}
-
-        {/* Grounded User Data Banner */}
-        <div className="px-4 py-2 bg-[#172445] border-b border-[#2a3c6b]/60 flex items-center justify-between text-[11px] text-slate-300">
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-[#5FD6A0] animate-pulse" />
-            <span><strong>Model:</strong> google/gemma-4-26b-a4b-it:free (OpenRouter) + RAG Knowledge Corpus</span>
-          </div>
-          <span className="font-mono text-[10px] text-indigo-300 hidden sm:inline">Stream & Multi-turn Ready</span>
-        </div>
 
         {/* Quick Suggest Prompts */}
         <div className="flex overflow-x-auto gap-2 px-4 py-2 bg-[#0e172e] border-b border-[#2a3c6b]/60 scrollbar-none">
@@ -389,7 +362,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
           {isTyping && (
             <div className="flex items-center space-x-2 text-slate-400 text-xs p-2">
               <Bot className="w-4 h-4 text-[#5FD6A0] animate-bounce" />
-              <span className="font-mono">OpenRouter Gemma 26B model is reasoning...</span>
+              <span className="font-mono">AI Chatbot is answering query...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -401,7 +374,7 @@ export default function MentorChatModal({ isOpen, onClose, selectedProject, save
             type="text"
             value={inputQuestion}
             onChange={(e) => setInputQuestion(e.target.value)}
-            placeholder="Ask OpenRouter Gemma 26B about your projects, viva defense, system architecture..."
+            placeholder="Ask any question..."
             className="flex-1 px-4 py-3 bg-[#121c38] border border-[#2a3c6b] rounded-2xl text-xs sm:text-sm text-white focus:outline-none focus:border-[#5FD6A0] placeholder:text-slate-500"
           />
           <button

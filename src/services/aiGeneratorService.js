@@ -79,7 +79,7 @@ async function callOpenRouterCompletion({ messages, model = DEFAULT_OPENROUTER_M
     'Authorization': `Bearer ${effectiveKey}`,
     'Content-Type': 'application/json',
     'HTTP-Referer': 'https://siva10116.github.io/promptwarxparuluniversity/',
-    'X-Title': 'IdeaForge AI Capstone Platform'
+    'X-Title': 'IdeaForge AI Platform'
   };
 
   const payload = {
@@ -170,7 +170,6 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
   }
 ]`;
 
-  // 1. Try OpenRouter API first
   if (effectiveOpenRouterKey) {
     try {
       const openRouterResultText = await callOpenRouterCompletion({
@@ -178,7 +177,6 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
         apiKey: effectiveOpenRouterKey
       });
       if (openRouterResultText) {
-        // Clean markdown code blocks if model wrapped output in ```json
         const cleanedText = openRouterResultText.replace(/```json/g, '').replace(/```/g, '').trim();
         return JSON.parse(cleanedText);
       }
@@ -187,7 +185,6 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
     }
   }
 
-  // 2. Gemini Fallback
   const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
   if (effectiveGeminiKey) {
     try {
@@ -248,7 +245,7 @@ function generateSmartMockIdeas({ domain, skills, difficulty, teamSize, timeline
 }
 
 /**
- * Real-time Live Viva Quiz Generator via OpenRouter (google/gemma-4-26b-a4b-it:free) & Gemini
+ * Real-time Live Viva Quiz Generator via OpenRouter & Gemini
  */
 export async function generateLiveVivaQuiz({ projectTitle, techStack = [], openrouterKey, geminiKey }) {
   const prompt = `You are an engineering professor creating a 4-question Viva Defense exam for project "${projectTitle || 'Engineering Capstone'}" using tech stack: ${techStack.join(', ') || 'React, Python, Database'}.
@@ -270,7 +267,6 @@ Return ONLY a valid JSON array of 4 objects matching this exact schema:
   }
 ]`;
 
-  // 1. OpenRouter Call
   try {
     const openRouterText = await callOpenRouterCompletion({
       messages: [{ role: 'user', content: prompt }],
@@ -284,7 +280,6 @@ Return ONLY a valid JSON array of 4 objects matching this exact schema:
     console.warn("OpenRouter Live Viva Quiz generation fallback to Gemini:", e);
   }
 
-  // 2. Gemini Fallback
   const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
   if (effectiveGeminiKey) {
     try {
@@ -313,101 +308,32 @@ export async function askMentorQuestion({ question, projectContext, apiKey }) {
   return converseWithMentorChatbot({
     question,
     history: [],
-    userContext: { selectedProject: projectContext },
     openrouterKey: apiKey
   });
 }
 
 /**
- * Full Multi-turn Conversational Chatbot with RAG Vector Retrieval over OpenRouter & Gemini
+ * General Purpose Conversational AI Chatbot
+ * Answers any user query cleanly and directly using OpenRouter (google/gemma-4-26b-a4b-it:free) & Gemini.
  */
-export async function converseWithMentorChatbot({ question, history = [], userContext = {}, openrouterKey, geminiKey }) {
-  const { selectedProject, savedIdeas = [], currentIdeas = [], userProfile = {} } = userContext;
-
-  // 1. Gather all user data sources into RAG Knowledge Corpus
-  const corpus = [];
-
-  if (selectedProject) {
-    corpus.push({
-      source: "Active Project Blueprint",
-      text: `Title: ${selectedProject.title}\nTagline: ${selectedProject.tagline}\nDomain: ${selectedProject.domain}\nTech Stack: ${(selectedProject.techStack || []).join(', ')}\nProblem: ${selectedProject.problem || selectedProject.problemStatement}\nFeatures: ${(selectedProject.features || []).join('; ')}\nRoadmap: ${(selectedProject.roadmap || []).map(r => r.phase + ': ' + r.detail).join(' | ')}`
-    });
-  }
-
-  savedIdeas.forEach((idea, idx) => {
-    corpus.push({
-      source: `Saved Project #${idx + 1}: ${idea.title}`,
-      text: `Title: ${idea.title}\nDomain: ${idea.domain}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem || idea.problemStatement}`
-    });
-  });
-
-  currentIdeas.forEach((idea, idx) => {
-    if (selectedProject?.title !== idea.title) {
-      corpus.push({
-        source: `Generated Blueprint Option #${idx + 1}: ${idea.title}`,
-        text: `Title: ${idea.title}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem || idea.problemStatement}`
-      });
-    }
-  });
-
-  DEFAULT_IDEAS.forEach(idea => {
-    corpus.push({
-      source: `System Template: ${idea.title}`,
-      text: `Title: ${idea.title}\nDomain: ${idea.domain}\nTech Stack: ${(idea.techStack || []).join(', ')}\nProblem: ${idea.problem}`
-    });
-  });
-
-  if (userProfile.skills && userProfile.skills.length > 0) {
-    corpus.push({
-      source: "Student Skill Profile",
-      text: `Interests: ${(userProfile.interests || []).join(', ')}\nStated Skills: ${userProfile.skills.join(', ')}\nTarget Difficulty: ${userProfile.difficulty || 'Intermediate'}\nTimeline: ${userProfile.timeline || '3-4 months'}`
-    });
-  }
-
-  // 2. Perform RAG Vector / Keyword Similarity Scoring over User Corpus
-  const queryTokens = extractNLPKeywords(question);
-  const scoredCorpus = corpus.map(doc => {
-    const docTokens = extractNLPKeywords(doc.text);
-    let score = 0;
-    queryTokens.forEach(token => {
-      if (docTokens.includes(token)) score += 3;
-    });
-    return { ...doc, score };
-  });
-
-  scoredCorpus.sort((a, b) => b.score - a.score);
-  const topRAGChunks = scoredCorpus.slice(0, 4);
-  const ragContextBlock = topRAGChunks.map(c => `[Context from ${c.source}]\n${c.text}`).join('\n\n');
-
-  const latestUserPrompt = `[SYSTEM PREAMBLE & RAG USER DATA CONTEXT]
-You are IdeaForge AI, an expert Engineering Professor and Capstone Mentor powered by OpenRouter (${DEFAULT_OPENROUTER_MODEL}) and RAG.
-You have complete access to the student's project data, saved blueprints, skills, and templates below.
-
-RAG RETRIEVED USER DATA:
-${ragContextBlock}
-
-STUDENT PROFILE & CURRENT CONTEXT:
-- Active Selected Project: ${selectedProject ? selectedProject.title : 'None selected'}
-- Saved Projects Count: ${savedIdeas.length}
-- Student Skills: ${userProfile.skills ? userProfile.skills.join(', ') : 'Not specified'}
-
-INSTRUCTIONS:
-1. Answer the student's question directly using the retrieved RAG context and user data.
-2. If they ask about architecture, tech choices, database design, or Viva defense, tailor the response specifically to their projects and skills.
-3. Keep responses structured, professional, and directly actionable (use markdown bolding, code snippets, and bullet points where helpful).
-
-[STUDENT QUESTION]:
-${question}`;
-
-  // 3. Try OpenRouter API first (google/gemma-4-26b-a4b-it:free)
+export async function converseWithMentorChatbot({ question, history = [], openrouterKey, geminiKey }) {
   const effectiveOpenRouterKey = getEffectiveOpenRouterKey(openrouterKey);
+
+  // 1. Send directly to OpenRouter API (google/gemma-4-26b-a4b-it:free)
   if (effectiveOpenRouterKey) {
     try {
-      const openRouterMessages = history.map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      }));
-      openRouterMessages.push({ role: 'user', content: latestUserPrompt });
+      const openRouterMessages = [
+        { role: 'system', content: 'You are a helpful, intelligent AI Chatbot Assistant. Answer any question asked by the user clearly, accurately, and concisely with markdown formatting.' }
+      ];
+
+      history.forEach(msg => {
+        openRouterMessages.push({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        });
+      });
+
+      openRouterMessages.push({ role: 'user', content: question });
 
       const responseText = await callOpenRouterCompletion({
         messages: openRouterMessages,
@@ -420,7 +346,7 @@ ${question}`;
     }
   }
 
-  // 4. Gemini API Fallback
+  // 2. Gemini API Fallback
   const effectiveGeminiKey = getEffectiveApiKey(geminiKey);
   if (effectiveGeminiKey) {
     try {
@@ -433,7 +359,7 @@ ${question}`;
       });
       formattedContents.push({
         role: 'user',
-        parts: [{ text: latestUserPrompt }]
+        parts: [{ text: question }]
       });
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveGeminiKey}`, {
@@ -448,31 +374,10 @@ ${question}`;
         if (responseText) return responseText;
       }
     } catch (e) {
-      console.warn("Gemini Chatbot API call failed, falling back to NLP engine:", e);
+      console.warn("Gemini Chatbot API call failed:", e);
     }
   }
 
-  // 5. Fallback RAG NLP Engine if offline or error
-  const activeTitle = selectedProject?.title || (savedIdeas[0] ? savedIdeas[0].title : 'your capstone project');
-  const activeTech = selectedProject?.techStack || (savedIdeas[0] ? savedIdeas[0].techStack : ['React', 'Node.js', 'Python']);
-
-  if (queryTokens.some(t => ['viva', 'defense', 'examiner', 'question', 'ask'].includes(t))) {
-    return `🎓 **Viva Defense Advisor (Grounded on ${activeTitle})**:
-
-Examiners evaluating **${activeTitle}** will likely ask:
-
-1. **Architecture & Scalability**: Why did you select **${activeTech.join(', ')}**? How does the vector/RAG pipeline handle high concurrency?
-2. **Data Pipeline**: What preprocessing (tokenization, stop-word removal) is applied before embedding?
-3. **Database Indexing**: What indices or schema choices prevent bottlenecking during complex query execution?
-
-*Powered by OpenRouter (${DEFAULT_OPENROUTER_MODEL}) & RAG.*`;
-  }
-
-  return `🤖 **IdeaForge Conversational Mentor (${DEFAULT_OPENROUTER_MODEL})**:
-
-For **"${activeTitle}"** using **${activeTech.slice(0, 3).join(', ')}**:
-
-1. **Next Implementation Step**: Focus on setting up the API endpoint contract before starting front-end state management.
-2. **RAG Context Integration**: Ensure retrieved documents are formatted with distinct metadata headers.
-3. **Documentation**: Prepare your IEEE synopsis and architectural sequence diagrams early for review.`;
+  // 3. Fallback response if offline
+  return `🤖 I received your message: "${question}".\n\nI am ready to answer any general questions, coding problems, tech choices, or project queries!`;
 }

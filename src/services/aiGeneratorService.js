@@ -3,11 +3,6 @@ import { DEFAULT_IDEAS } from '../data/projectTemplates';
 // Gemini API Key provided by user (assembled at runtime to pass GH013 secret scan protection)
 const DEFAULT_SYSTEM_GEMINI_KEY = ["AQ.Ab8RN6IGB4BzhBBLEtE7rDz", "HXqPaaH_LPTl_ms7MEt5ceD7OYw"].join('');
 
-// OpenRouter API Key provided by user
-const DEFAULT_SYSTEM_OPENROUTER_KEY = ["sk-or-v1-8e1280007eaeae6776a899af5fae0a861ad7eddbc19d841", "7c02f5150142c1e86"].join('');
-
-export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
-
 // Dynamic Gemini API Key resolution
 export const getEffectiveApiKey = (customKey) => {
   if (customKey && customKey.trim().length > 5) return customKey.trim();
@@ -21,27 +16,15 @@ export const getEffectiveApiKey = (customKey) => {
   return DEFAULT_SYSTEM_GEMINI_KEY;
 };
 
-// Dynamic OpenRouter API Key resolution
-export const getEffectiveOpenRouterKey = (customKey) => {
-  if (customKey && customKey.trim().length > 5) return customKey.trim();
-  if (typeof localStorage !== 'undefined') {
-    const stored = localStorage.getItem('ideaforge_custom_openrouter_key');
-    if (stored && stored.trim().length > 5) return stored.trim();
-  }
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OPENROUTER_API_KEY) {
-    return import.meta.env.VITE_OPENROUTER_API_KEY;
-  }
-  return DEFAULT_SYSTEM_OPENROUTER_KEY;
-};
-
 /**
- * Direct Live Gemini API Call with Model Fallback Candidates
+ * Direct Live Gemini API Call with Model Candidates
+ * Exclusively uses Google Gemini API endpoints
  */
 async function callLiveGeminiApi({ contents, apiKey }) {
   const effectiveKey = getEffectiveApiKey(apiKey);
   if (!effectiveKey) throw new Error("No Gemini API Key available");
 
-  const candidateModels = ["gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-1.5-flash"];
+  const candidateModels = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-2.0-flash"];
   let lastError = null;
 
   for (const modelName of candidateModels) {
@@ -58,76 +41,20 @@ async function callLiveGeminiApi({ contents, apiKey }) {
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (textResult) return textResult;
       } else {
-        lastError = await response.text();
+        const errJson = await response.json().catch(() => null);
+        lastError = errJson?.error?.message || (await response.text().catch(() => response.statusText));
       }
     } catch (e) {
       lastError = e.message;
     }
   }
-  throw new Error(`Gemini API Error: ${lastError || 'Model not found'}`);
+  throw new Error(`Gemini API Error: ${lastError || 'Model not found or request failed'}`);
 }
 
 /**
- * Direct Live OpenRouter API Call with Multi-Turn Conversation Memory
+ * Live Project Blueprint Generator using Gemini API
  */
-async function callLiveOpenRouterApi({ messages, apiKey, model = DEFAULT_OPENROUTER_MODEL }) {
-  const effectiveKey = getEffectiveOpenRouterKey(apiKey);
-  if (!effectiveKey) throw new Error("No OpenRouter API Key available");
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${effectiveKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://siva10116.github.io/promptwarxparuluniversity/',
-      'X-Title': 'IdeaForge AI Chatbot'
-    },
-    body: JSON.stringify({
-      model: model,
-      messages: messages,
-      temperature: 0.7
-    })
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter API Error ${response.status}: ${errText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenRouter API returned an empty completion");
-  return content;
-}
-
-/**
- * Direct Live Pollinations AI REST Completion Call (Zero key requirement)
- */
-async function callLivePollinationsApi({ messages }) {
-  const response = await fetch('https://text.pollinations.ai/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: messages,
-      model: 'openai'
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Pollinations API error: ${response.status}`);
-  }
-
-  const text = await response.text();
-  if (!text || text.trim().length === 0) {
-    throw new Error("Pollinations API returned empty completion");
-  }
-  return text.trim();
-}
-
-/**
- * Live Project Blueprint Generator using direct LLM API
- */
-export async function generateProjectIdeas({ domain, skills, difficulty, teamSize, timeline, keywords, geminiKey, openrouterKey }) {
+export async function generateProjectIdeas({ domain, skills, difficulty, teamSize, timeline, keywords, geminiKey }) {
   const prompt = `You are an expert Engineering Professor and Capstone Mentor.
 Generate 3 distinct, highly innovative, A+ grade final year capstone project ideas matching student request:
 - Domain: ${domain || 'Computer Science / Engineering'}
@@ -175,40 +102,18 @@ Respond ONLY with a valid JSON array of 3 objects matching this exact schema:
   }
 ]`;
 
-  // 1. Try Gemini API first
-  try {
-    const rawResult = await callLiveGeminiApi({
-      contents: [{ parts: [{ text: prompt }] }],
-      apiKey: geminiKey
-    });
-    const cleanedText = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanedText);
-  } catch (geminiErr) {
-    console.warn("Gemini API generation error, trying OpenRouter fallback:", geminiErr);
-    // 2. OpenRouter API
-    try {
-      const openRouterResult = await callLiveOpenRouterApi({
-        messages: [{ role: 'user', content: prompt }],
-        apiKey: openrouterKey
-      });
-      const cleaned = openRouterResult.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    } catch (orErr) {
-      // 3. Pollinations AI Fallback
-      console.warn("OpenRouter API error, trying Pollinations AI fallback:", orErr);
-      const pollText = await callLivePollinationsApi({
-        messages: [{ role: 'user', content: prompt }]
-      });
-      const cleaned = pollText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    }
-  }
+  const rawResult = await callLiveGeminiApi({
+    contents: [{ parts: [{ text: prompt }] }],
+    apiKey: geminiKey
+  });
+  const cleanedText = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
+  return JSON.parse(cleanedText);
 }
 
 /**
- * Live Viva Quiz Generator via direct LLM API
+ * Live Viva Quiz Generator via Gemini API
  */
-export async function generateLiveVivaQuiz({ projectTitle, techStack = [], geminiKey, openrouterKey }) {
+export async function generateLiveVivaQuiz({ projectTitle, techStack = [], geminiKey }) {
   const prompt = `You are an engineering professor creating a 4-question Viva Defense exam for project "${projectTitle || 'Engineering Capstone'}" using tech stack: ${techStack.join(', ') || 'React, Python, Database'}.
 
 Return ONLY a valid JSON array of 4 objects matching this exact schema:
@@ -228,30 +133,12 @@ Return ONLY a valid JSON array of 4 objects matching this exact schema:
   }
 ]`;
 
-  try {
-    const resText = await callLiveGeminiApi({
-      contents: [{ parts: [{ text: prompt }] }],
-      apiKey: geminiKey
-    });
-    const cleaned = resText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.warn("Gemini viva quiz generation attempt failed, trying OpenRouter:", e);
-    try {
-      const orText = await callLiveOpenRouterApi({
-        messages: [{ role: 'user', content: prompt }],
-        apiKey: openrouterKey
-      });
-      const cleaned = orText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    } catch (gErr) {
-      const pollText = await callLivePollinationsApi({
-        messages: [{ role: 'user', content: prompt }]
-      });
-      const cleaned = pollText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    }
-  }
+  const resText = await callLiveGeminiApi({
+    contents: [{ parts: [{ text: prompt }] }],
+    apiKey: geminiKey
+  });
+  const cleaned = resText.replace(/```json/g, '').replace(/```/g, '').trim();
+  return JSON.parse(cleaned);
 }
 
 export async function askMentorQuestion({ question, projectContext, apiKey }) {
@@ -263,76 +150,29 @@ export async function askMentorQuestion({ question, projectContext, apiKey }) {
 }
 
 /**
- * Full Conversational AI Chatbot with Multi-Turn Memory
- * Primary Route: Gemini API
- * Secondary Route: OpenRouter API
- * Tertiary Route: Pollinations AI REST LLM completion
+ * Full Conversational AI Chatbot with Multi-Turn Memory using ONLY Gemini API
  */
-export async function converseWithMentorChatbot({ question, history = [], geminiKey, openrouterKey }) {
-  // 1. Try Gemini API Primary Route
-  try {
-    const geminiContents = [];
-    history.forEach(msg => {
-      geminiContents.push({
-        role: msg.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }]
-      });
-    });
+export async function converseWithMentorChatbot({ question, history = [], geminiKey }) {
+  const geminiContents = [];
+  
+  // Format history turns into Gemini content objects
+  history.forEach(msg => {
     geminiContents.push({
-      role: 'user',
-      parts: [{ text: question }]
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
     });
+  });
 
-    const reply = await callLiveGeminiApi({
-      contents: geminiContents,
-      apiKey: geminiKey
-    });
-    if (reply) return reply;
-  } catch (geminiErr) {
-    console.warn("Live Gemini API call failed, trying OpenRouter fallback:", geminiErr);
-    
-    // 2. Try OpenRouter API Secondary Route
-    try {
-      const openRouterMessages = [
-        { role: 'system', content: 'You are Gemini AI, an intelligent, articulate, and highly skilled AI Chatbot Assistant. Remember all previous conversation choices and context, and provide thorough, insightful, nicely formatted markdown responses.' }
-      ];
+  geminiContents.push({
+    role: 'user',
+    parts: [{ text: question }]
+  });
 
-      history.forEach(msg => {
-        openRouterMessages.push({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        });
-      });
-
-      openRouterMessages.push({ role: 'user', content: question });
-
-      const openRouterReply = await callLiveOpenRouterApi({
-        messages: openRouterMessages,
-        apiKey: openrouterKey
-      });
-      if (openRouterReply) return openRouterReply;
-    } catch (openRouterErr) {
-      console.warn("OpenRouter API call failed, trying Pollinations AI fallback:", openRouterErr);
-      
-      // 3. Try Pollinations AI REST Fallback
-      try {
-        const apiMessages = [
-          { role: 'system', content: 'You are Gemini AI, an intelligent, articulate, and highly skilled AI Chatbot Assistant. Provide clear, comprehensive markdown responses.' }
-        ];
-        history.forEach(msg => {
-          apiMessages.push({
-            role: msg.sender === 'user' ? 'user' : 'assistant',
-            content: msg.text
-          });
-        });
-        apiMessages.push({ role: 'user', content: question });
-
-        const pollReply = await callLivePollinationsApi({ messages: apiMessages });
-        if (pollReply) return pollReply;
-      } catch (pollErr) {
-        console.error("All AI API endpoints failed:", pollErr);
-        throw new Error(`Gemini: ${geminiErr.message} | OpenRouter: ${openRouterErr.message} | Pollinations: ${pollErr.message}`);
-      }
-    }
-  }
+  const reply = await callLiveGeminiApi({
+    contents: geminiContents,
+    apiKey: geminiKey
+  });
+  
+  if (reply) return reply;
+  throw new Error("Gemini API returned an empty response.");
 }

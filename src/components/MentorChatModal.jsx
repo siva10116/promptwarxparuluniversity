@@ -3,12 +3,9 @@ import {
   X, Send, Bot, User, Sparkles, HelpCircle, MessageSquare,
   RefreshCw, Key, Download, Copy, Check, RotateCcw, Cpu
 } from 'lucide-react';
-import { converseWithMentorChatbot, DEFAULT_OPENROUTER_MODEL } from '../services/aiGeneratorService';
+import { converseWithMentorChatbot } from '../services/aiGeneratorService';
 
 export default function MentorChatModal({ isOpen, onClose }) {
-  const [customOpenRouterKey, setCustomOpenRouterKey] = useState(() => {
-    return localStorage.getItem('ideaforge_custom_openrouter_key') || '';
-  });
   const [customGeminiKey, setCustomGeminiKey] = useState(() => {
     return localStorage.getItem('ideaforge_custom_gemini_key') || '';
   });
@@ -58,14 +55,6 @@ export default function MentorChatModal({ isOpen, onClose }) {
     }
   }, [messages]);
 
-  const handleSaveOpenRouterKey = (key) => {
-    setCustomOpenRouterKey(key);
-    try {
-      localStorage.setItem('ideaforge_custom_openrouter_key', key);
-    } catch (e) {
-      console.warn("Error saving OpenRouter key:", e);
-    }
-  };
 
   const handleSaveGeminiKey = (key) => {
     setCustomGeminiKey(key);
@@ -130,8 +119,7 @@ export default function MentorChatModal({ isOpen, onClose }) {
       const responseText = await converseWithMentorChatbot({
         question: query,
         history: historyTurns.slice(-15),
-        geminiKey: customGeminiKey,
-        openrouterKey: customOpenRouterKey
+        geminiKey: customGeminiKey
       });
 
       const mentorMsg = {
@@ -267,34 +255,17 @@ export default function MentorChatModal({ isOpen, onClose }) {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div className="flex items-center space-x-2 w-full sm:w-auto">
                 <Key className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="text-slate-300 font-mono">Gemini Key:</span>
+                <span className="text-slate-300 font-mono">Gemini API Key:</span>
                 <input
                   type="password"
                   value={customGeminiKey}
                   onChange={(e) => handleSaveGeminiKey(e.target.value)}
-                  placeholder="AQ.Ab8RN6LxslWiiHJRlCQ..."
+                  placeholder="AQ.Ab8RN6IGB4BzhBBLEtE7rDz..."
                   className="w-full sm:w-72 px-3 py-1.5 bg-[#121c38] border border-[#2a3c6b] rounded-lg text-white font-mono focus:outline-none focus:border-amber-400"
                 />
               </div>
               <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded font-mono text-[10px]">
-                Primary Model: gemini-1.5-flash
-              </span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-[#2a3c6b]/50 pt-2">
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <Key className="w-4 h-4 text-[#5FD6A0] shrink-0" />
-                <span className="text-slate-300 font-mono">OpenRouter Key:</span>
-                <input
-                  type="password"
-                  value={customOpenRouterKey}
-                  onChange={(e) => handleSaveOpenRouterKey(e.target.value)}
-                  placeholder="sk-or-v1-8e1280007eaeae677..."
-                  className="w-full sm:w-72 px-3 py-1.5 bg-[#121c38] border border-[#2a3c6b] rounded-lg text-white font-mono focus:outline-none focus:border-[#5FD6A0]"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Model: google/gemma-4-26b-a4b-it:free
+                Active Engine: Google Gemini API
               </span>
             </div>
           </div>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Flame, Award, CheckCircle2, AlertCircle, RefreshCw, ChevronRight, HelpCircle, GraduationCap, ShieldCheck } from 'lucide-react';
+import { Flame, Award, CheckCircle2, AlertCircle, RefreshCw, ChevronRight, HelpCircle, GraduationCap, ShieldCheck, Sparkles, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { generateLiveVivaQuiz } from '../services/aiGeneratorService';
 
-const VIVA_QUIZ_BANKS = [
+const STATIC_VIVA_QUIZ_BANKS = [
   {
     id: 1,
     category: 'Architecture & System Design',
@@ -58,13 +59,17 @@ const VIVA_QUIZ_BANKS = [
 ];
 
 export default function VivaSimulator({ selectedProject }) {
+  const [questions, setQuestions] = useState(STATIC_VIVA_QUIZ_BANKS);
+  const [isGeneratingLive, setIsGeneratingLive] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedOpt, setSelectedOpt] = useState(null);
   const [score, setScore] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
 
-  const currentQ = VIVA_QUIZ_BANKS[currentIdx];
+  const currentQ = questions[currentIdx] || STATIC_VIVA_QUIZ_BANKS[0];
 
   const handleSelectOption = (idx) => {
     if (submitted) return;
@@ -75,13 +80,13 @@ export default function VivaSimulator({ selectedProject }) {
     if (selectedOpt === null || submitted) return;
     setSubmitted(true);
     if (selectedOpt === currentQ.correctIdx) {
-      setScore(score + 1);
+      setScore(prev => prev + 1);
       confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
     }
   };
 
   const handleNextQuestion = () => {
-    if (currentIdx + 1 < VIVA_QUIZ_BANKS.length) {
+    if (currentIdx + 1 < questions.length) {
       setCurrentIdx(currentIdx + 1);
       setSelectedOpt(null);
       setSubmitted(false);
@@ -99,22 +104,46 @@ export default function VivaSimulator({ selectedProject }) {
     setQuizFinished(false);
   };
 
-  const readinessPercent = Math.round((score / VIVA_QUIZ_BANKS.length) * 100);
+  const handleGenerateLiveAIQuiz = async () => {
+    setIsGeneratingLive(true);
+    try {
+      const liveQuiz = await generateLiveVivaQuiz({
+        projectTitle: selectedProject?.title || 'Smart Engineering System',
+        techStack: selectedProject?.techStack || ['React', 'Python', 'PostgreSQL']
+      });
+
+      if (liveQuiz && Array.isArray(liveQuiz) && liveQuiz.length > 0) {
+        setQuestions(liveQuiz);
+        setIsLiveMode(true);
+        handleRestart();
+      }
+    } catch (e) {
+      console.warn("Live quiz generation fallback to static bank:", e);
+    } finally {
+      setIsGeneratingLive(false);
+    }
+  };
+
+  const readinessPercent = Math.round((score / questions.length) * 100);
 
   return (
     <div className="bg-[#121c38] border border-[#2a3c6b] rounded-3xl p-6 sm:p-8 shadow-2xl max-w-4xl mx-auto text-white">
       
       {/* Header Banner */}
-      <div className="flex items-center justify-between pb-6 border-b border-[#2a3c6b]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-[#2a3c6b]">
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20 shrink-0">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap">
               <h3 className="font-extrabold text-xl">Professor Viva & Defense Simulator</h3>
-              <span className="px-2.5 py-0.5 text-[10px] font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full">
-                PRACTICE MODE
+              <span className={`px-2.5 py-0.5 text-[10px] font-mono font-bold rounded-full border ${
+                isLiveMode 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              }`}>
+                {isLiveMode ? '⚡ LIVE GEMINI EXAMINER' : 'STANDARD QUIZ BANK'}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -123,13 +152,34 @@ export default function VivaSimulator({ selectedProject }) {
           </div>
         </div>
 
-        <button
-          onClick={handleRestart}
-          className="p-2.5 bg-[#1b284d] hover:bg-[#253769] border border-[#2a3c6b] rounded-xl text-slate-300 transition"
-          title="Restart Simulator"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <button
+            onClick={handleGenerateLiveAIQuiz}
+            disabled={isGeneratingLive}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-[#6344f5] to-indigo-600 hover:from-[#5233e4] hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-2 shadow-md transition disabled:opacity-50"
+            title="Generate Live Custom Examiner Questions using Gemini API"
+          >
+            {isGeneratingLive ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Generating AI Questions...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Generate Live AI Viva</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleRestart}
+            className="p-2.5 bg-[#1b284d] hover:bg-[#253769] border border-[#2a3c6b] rounded-xl text-slate-300 transition"
+            title="Restart Simulator"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {!quizFinished ? (
@@ -138,15 +188,15 @@ export default function VivaSimulator({ selectedProject }) {
           {/* Question Counter Bar */}
           <div className="flex items-center justify-between text-xs font-mono text-slate-400">
             <span className="text-amber-400 font-bold">
-              Question {currentIdx + 1} of {VIVA_QUIZ_BANKS.length}
+              Question {currentIdx + 1} of {questions.length}
             </span>
             <span className="px-3 py-1 bg-[#1b284d] border border-[#2a3c6b] rounded-full text-indigo-300">
-              Category: {currentQ.category}
+              Category: {currentQ.category || 'General Defense'}
             </span>
           </div>
 
           {/* Question Text */}
-          <div className="p-5 bg-[#0b1329] border border-[#2a3c6b] rounded-2xl">
+          <div className="p-5 bg-[#0b1329] border border-[#2a3c6b] rounded-2xl shadow-inner">
             <p className="text-base sm:text-lg font-bold text-slate-100 leading-snug">
               Q: {currentQ.question}
             </p>
@@ -213,7 +263,7 @@ export default function VivaSimulator({ selectedProject }) {
                 onClick={handleNextQuestion}
                 className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-indigo-600/20 transition"
               >
-                <span>{currentIdx + 1 < VIVA_QUIZ_BANKS.length ? 'Next Question' : 'View Final Readiness Score'}</span>
+                <span>{currentIdx + 1 < questions.length ? 'Next Question' : 'View Final Readiness Score'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}

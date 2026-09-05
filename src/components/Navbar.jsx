@@ -1,10 +1,10 @@
 import React from 'react';
-import { Flame, Bookmark, Key, Sparkles, GraduationCap, Columns } from 'lucide-react';
+import { Flame, Bookmark, MessageSquare, Sparkles, Bot } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, savedCount, onOpenApiKeyModal }) {
+export default function Navbar({ activeTab, setActiveTab, savedCount, onOpenChatbot }) {
   return (
     <header className="sticky top-4 z-50 max-w-6xl mx-auto px-4">
-      {/* Floating White Pill Container */}
+      {/* Floating White Pill Navbar Container */}
       <div className="bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full px-6 py-2.5 shadow-xl shadow-slate-900/10 flex items-center justify-between text-slate-900 transition-all duration-300">
         
         {/* Left: Brand Name */}
@@ -72,15 +72,15 @@ export default function Navbar({ activeTab, setActiveTab, savedCount, onOpenApiK
           </button>
         </nav>
 
-        {/* Right: Pill Action Button */}
+        {/* Right: AI Chatbot Pill Button */}
         <div className="flex items-center space-x-2">
           <button
-            onClick={onOpenApiKeyModal}
-            className="flex items-center space-x-2 px-4 py-2 rounded-full border border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-800 text-xs font-semibold shadow-sm transition-all"
-            title="Configure Gemini API Key"
+            onClick={onOpenChatbot}
+            className="flex items-center space-x-2 px-4 py-2 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold shadow-sm transition-all"
+            title="Chat with AI Mentor"
           >
-            <Key className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden md:inline">Gemini Key</span>
+            <Bot className="w-4 h-4 text-indigo-600" />
+            <span>AI Chatbot</span>
           </button>
         </div>
 

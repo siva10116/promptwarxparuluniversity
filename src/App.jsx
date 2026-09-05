@@ -4,14 +4,14 @@ import VivaSimulator from "./components/VivaSimulator";
 import IdeaComparer from "./components/IdeaComparer";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeBoilerplate from "./components/CodeBoilerplate";
-import ApiKeyModal from "./components/ApiKeyModal";
+import MentorChatModal from "./components/MentorChatModal";
 import { INTERESTS, SKILLS, DIFFICULTIES, TEAM_SIZES, DEFAULT_IDEAS } from "./data/projectTemplates";
 import { generateProjectIdeas, askMentorQuestion } from "./services/aiGeneratorService";
 import { exportProjectPDF, exportProjectMarkdown } from "./services/pdfExporter";
 import {
   Flame, PenTool, Bookmark, BookmarkCheck, Loader2, Send, ChevronRight,
   ChevronLeft, X, Plus, ListChecks, ArrowRight, RefreshCw, Sparkles,
-  Download, FileText, Key, Network, Code2, HelpCircle, Check, BookOpen, GraduationCap, Columns
+  Download, FileText, Network, Code2, HelpCircle, Check, BookOpen, GraduationCap, Columns, Bot
 } from "lucide-react";
 
 const DURATIONS = ["6–8 weeks", "3–4 months", "6+ months"];
@@ -111,7 +111,7 @@ function IdeaSheet({ idea, index, total, saved, onToggleSave, onOpen, onExportPD
   );
 }
 
-function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoading, onExportPDF, onExportMD }) {
+function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoading, onExportPDF, onExportMD, onOpenChat }) {
   const [question, setQuestion] = useState("");
   const [activeTab, setActiveTab] = useState("roadmap");
 
@@ -135,12 +135,23 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
         <div className="flex items-center space-x-2">
           <button
             type="button"
+            onClick={onOpenChat}
+            className="bp-savedbtn flex items-center space-x-1"
+            title="Open AI Chatbot"
+          >
+            <Bot size={14} className="text-indigo-400" />
+            <span>AI Chatbot</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => onExportMD(idea)}
             className="bp-savedbtn"
             title="Download Markdown Blueprint"
           >
             <FileText size={14} /> Export MD
           </button>
+
           <button
             type="button"
             onClick={() => onExportPDF(idea)}
@@ -319,7 +330,7 @@ function DetailSheet({ idea, saved, onToggleSave, onBack, thread, onAsk, chatLoa
       <div className="bp-chat">
         <h4 className="bp-section-heading flex items-center justify-between">
           <span>Ask about this project</span>
-          <span className="text-[11px] text-[#5FD6A0]">AI Mentor Active</span>
+          <span className="text-[11px] text-[#5FD6A0]">AI Chatbot Ready</span>
         </h4>
         <div className="bp-chat-thread">
           {thread.length === 0 && (
@@ -378,16 +389,12 @@ export default function IdeaForgeApp() {
   const [chatThreads, setChatThreads] = useState({});
   const [chatLoading, setChatLoading] = useState(false);
 
-  const [apiKey, setApiKey] = useState("");
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isChatbotModalOpen, setIsChatbotModalOpen] = useState(false);
 
   useEffect(() => {
     try {
       const storedSaved = localStorage.getItem("ideaforge_saved_ideas");
       if (storedSaved) setSavedIdeas(JSON.parse(storedSaved));
-
-      const storedKey = localStorage.getItem("ideaforge_gemini_key");
-      if (storedKey) setApiKey(storedKey);
     } catch (e) {
       console.warn("Storage sync error:", e);
     }
@@ -399,15 +406,6 @@ export default function IdeaForgeApp() {
       localStorage.setItem("ideaforge_saved_ideas", JSON.stringify(updated));
     } catch (e) {
       console.warn("Storage write error:", e);
-    }
-  };
-
-  const handleSaveApiKey = (key) => {
-    setApiKey(key);
-    try {
-      localStorage.setItem("ideaforge_gemini_key", key);
-    } catch (e) {
-      console.warn("Error saving API key:", e);
     }
   };
 
@@ -466,8 +464,7 @@ export default function IdeaForgeApp() {
         difficulty,
         teamSize,
         timeline: duration,
-        keywords: selectedInterests.join(", "),
-        apiKey
+        keywords: selectedInterests.join(", ")
       });
 
       setIdeas(generated);
@@ -492,8 +489,7 @@ export default function IdeaForgeApp() {
     try {
       const text = await askMentorQuestion({
         question: questionText,
-        projectContext: idea,
-        apiKey
+        projectContext: idea
       });
 
       setChatThreads((prev) => ({
@@ -545,12 +541,6 @@ export default function IdeaForgeApp() {
         }
         .bp-shell { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 24px 80px; }
 
-        .bp-header {
-          position: sticky; top: 0; z-index: 20;
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 18px 24px; border-bottom: 1px solid var(--line-soft);
-          background: rgba(11,19,41,0.92); backdrop-filter: blur(8px);
-        }
         .bp-brand { display: flex; align-items: center; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 15px; cursor: pointer; }
         .bp-brand-sub { color: var(--ink-dim); font-size: 12px; font-family: 'IBM Plex Mono', monospace; margin-left: 10px; border-left: 1px solid var(--line-soft); padding-left: 10px; }
         .bp-savedbtn {
@@ -737,7 +727,7 @@ export default function IdeaForgeApp() {
 
       <div className="bp-grid-bg" />
 
-      {/* Production Header */}
+      {/* Production Floating Pill Header */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -746,7 +736,7 @@ export default function IdeaForgeApp() {
           if (tab === 'saved') setScreen('saved');
         }}
         savedCount={savedIdeas.length}
-        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        onOpenChatbot={() => setIsChatbotModalOpen(true)}
       />
 
       <div className="bp-shell pt-6">
@@ -894,6 +884,7 @@ export default function IdeaForgeApp() {
                 onAsk={(q) => askMentor(selectedIdea, q)}
                 onExportPDF={exportProjectPDF}
                 onExportMD={exportProjectMarkdown}
+                onOpenChat={() => setIsChatbotModalOpen(true)}
               />
             )}
           </>
@@ -941,12 +932,11 @@ export default function IdeaForgeApp() {
 
       </div>
 
-      {/* Gemini API Key Modal */}
-      <ApiKeyModal
-        isOpen={isApiKeyModalOpen}
-        onClose={() => setIsApiKeyModalOpen(false)}
-        apiKey={apiKey}
-        onSaveApiKey={handleSaveApiKey}
+      {/* AI Chatbot Modal */}
+      <MentorChatModal
+        isOpen={isChatbotModalOpen}
+        onClose={() => setIsChatbotModalOpen(false)}
+        selectedProject={selectedIdea}
       />
 
     </div>
